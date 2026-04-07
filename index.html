@@ -69,7 +69,7 @@
         .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; width: 0%; }
 
         /* ── Toolbar ── */
-        .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; display: none; }
+        .toolbar { justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; display: none; }
         .toolbar.visible { display: flex; }
         .btn {
             padding: 0.38rem 0.85rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500;
@@ -214,6 +214,7 @@
 <script>
 // ─── State ───
 const rows = []; // { name, thumbSrc, furniture, quality, spam, action, error }
+let batchRunning = false;
 
 // ─── DOM ───
 const $ = id => document.getElementById(id);
@@ -329,10 +330,13 @@ function fileToBase64(file) {
 
 // ─── Batch processor ───
 async function processBatch(items) {
-    // items: [{ name, thumbSrc, getClassification: async fn => {furniture,quality,spam} }]
+    // items: [{ name, thumbSrc, isBlobUrl, getClassification: async fn => {furniture,quality,spam} }]
     const apiKey = apiKeyEl.value.trim();
     if (!apiKey) { alert('Please enter your Anthropic API key.'); apiKeyEl.focus(); return; }
     if (!items.length) return;
+    if (batchRunning) { alert('A batch is already processing. Wait for it to finish or clear results first.'); return; }
+    batchRunning = true;
+    urlBtn.disabled = true;
 
     progress.classList.add('visible');
     toolbar.classList.add('visible');
@@ -353,9 +357,9 @@ async function processBatch(items) {
         try {
             const result = await item.getClassification(apiKey);
             const action = getAction(result.furniture, result.quality, result.spam);
-            rows.push({ name: item.name, thumbSrc: item.thumbSrc, furniture: result.furniture, quality: result.quality, spam: result.spam, action });
+            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture: result.furniture, quality: result.quality, spam: result.spam, action });
         } catch (err) {
-            rows.push({ name: item.name, thumbSrc: item.thumbSrc, furniture: '—', quality: '—', spam: '—', action: 'Review', error: err.message });
+            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture: '—', quality: '—', spam: '—', action: 'Review', error: err.message });
         }
         done++;
         progressCount.textContent = `${done} / ${total}`;
@@ -368,6 +372,8 @@ async function processBatch(items) {
     const workers = [];
     for (let i = 0; i < Math.min(3, items.length); i++) workers.push(next());
     await Promise.all(workers);
+    batchRunning = false;
+    urlBtn.disabled = false;
 }
 
 // ─── Handle file uploads ───
@@ -376,6 +382,7 @@ function handleFiles(fileList) {
     const items = files.map(file => ({
         name: file.name,
         thumbSrc: URL.createObjectURL(file),
+        isBlobUrl: true,
         getClassification: async (apiKey) => {
             const b64 = await fileToBase64(file);
             return classifyBase64(b64, file.type || 'image/jpeg', apiKey);
@@ -419,7 +426,7 @@ function renderTable() {
             : '—';
 
         return `<tr>
-            <td><div class="thumb-cell"><img class="thumb" src="${esc(r.thumbSrc)}" data-idx="${i}" alt="" onerror="this.style.display='none'"><span class="fname" title="${esc(r.name)}">${esc(r.name)}</span></div></td>
+            <td><div class="thumb-cell"><img class="thumb" src="${escAttr(r.thumbSrc)}" data-idx="${i}" alt="" onerror="this.style.display='none'"><span class="fname" title="${escAttr(r.name)}">${esc(r.name)}</span></div></td>
             <td><span class="badge ${furnitureBadge}">${esc(r.furniture)}</span></td>
             <td><span class="stars">${stars}</span>${typeof r.quality === 'number' ? ` <span style="color:var(--muted);font-size:0.75rem">(${r.quality}/5)</span>` : ''}</td>
             <td>${r.spam !== '—' ? `<span class="badge ${spamBadge}">${esc(r.spam)}</span>` : '—'}</td>
@@ -434,16 +441,23 @@ function esc(s) {
     return d.innerHTML;
 }
 
+function escAttr(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ─── CSV Export ───
 function exportCSV() {
+    if (!rows.length) return;
     const header = ['Filename', 'Furniture Detected', 'Quality (1-5)', 'Spam', 'Recommended Action'];
     const csvRows = rows.map(r => [r.name, r.furniture, r.quality, r.spam, r.action]);
     const csv = [header, ...csvRows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    const dlUrl = URL.createObjectURL(blob);
+    a.href = dlUrl;
     a.download = `ugc-classification-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
+    URL.revokeObjectURL(dlUrl);
 }
 
 // ─── Events ───
@@ -452,8 +466,11 @@ function exportCSV() {
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
-$('browseLink').addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
-dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('click', e => {
+    // Prevent double-trigger: only open picker once regardless of which child was clicked
+    if (e.target === fileInput) return;
+    fileInput.click();
+});
 fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
 
 // URLs
@@ -461,6 +478,7 @@ urlBtn.addEventListener('click', handleUrls);
 
 // Toolbar
 $('clearBtn').addEventListener('click', () => {
+    rows.forEach(r => { if (r.isBlobUrl) URL.revokeObjectURL(r.thumbSrc); });
     rows.length = 0;
     renderTable();
     progress.classList.remove('visible');
