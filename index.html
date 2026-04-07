@@ -118,6 +118,8 @@
         .star-off { color: var(--border); }
 
         .error-cell { color: var(--red); font-size: 0.78rem; }
+        .reasoning-cell { font-size: 0.78rem; color: var(--muted); max-width: 220px; line-height: 1.4; }
+        .spam-detail { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.3; }
 
         /* ── Modal ── */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; display: none; align-items: center; justify-content: center; }
@@ -194,7 +196,9 @@
             <tr>
                 <th>Image</th>
                 <th>Furniture?</th>
-                <th>Quality (1-5)</th>
+                <th>Category</th>
+                <th>Quality</th>
+                <th>Reasoning</th>
                 <th>Spam?</th>
                 <th>Action</th>
             </tr>
@@ -229,51 +233,78 @@ const apiKeyEl = $('apiKey');
 apiKeyEl.value = sessionStorage.getItem('_ak') || '';
 apiKeyEl.addEventListener('input', () => sessionStorage.setItem('_ak', apiKeyEl.value));
 
-// ─── Prompt ───
-const PROMPT = `You are an image classifier for a furniture ecommerce website. Analyze this image and respond with ONLY a JSON object — no markdown fences, no explanation.
+// ─── Prompts ───
+const SYSTEM_PROMPT = `You are an expert image classifier for a furniture ecommerce company. Your job is to evaluate user-generated content (UGC) photos — typically from Instagram posts tagged with the brand — and determine whether each image is suitable for display on the company's website product pages alongside professional photography.
+
+You evaluate three dimensions:
+
+1. PRODUCT IDENTIFICATION
+Determine if the image contains a recognizable piece of home furniture or furnishing. Target product categories: sofa, sectional, armchair, accent chair, dining table, coffee table, side table, console table, desk, bed frame, mattress, bookshelf, TV unit, cabinet, dresser, nightstand, desk chair, pendant light, floor lamp, table lamp, rug, ottoman, bench, outdoor furniture, or home decor/accessories. The product may appear in a real home setting, styled or unstyled. A partial or distant view still counts as "maybe."
+
+2. QUALITY ASSESSMENT
+Score how suitable the image is for display on a product detail page next to professional studio photos. Use this rubric strictly:
+- 5: Product is the clear hero. Sharp focus, good lighting, appealing composition. Could pass for a lifestyle studio shot.
+- 4: Product is prominent and clearly visible. Minor issues (slightly warm lighting, small amount of clutter) but still looks good on a product page.
+- 3: Product is identifiable but the image has noticeable issues — dim lighting, busy background, product partially obscured, average phone-camera quality. Borderline.
+- 2: Product is hard to see clearly. Significant problems: dark/blurry, heavy clutter, bad angle, product is small in frame.
+- 1: Unusable. Extremely blurry, overexposed/underexposed, product unrecognizable, or image is not actually a photo of furniture.
+
+3. SPAM/IRRELEVANT DETECTION
+Flag as spam if the image is any of: a screenshot of another social media post, a collage or mood board, a meme, a graphic with heavy text overlay, a stock photo with visible watermarks, an image with no actual photograph of a physical space or product, or a duplicate repost artifact.
+
+OUTPUT RULES:
+- Respond with ONLY a JSON object. No markdown fences, no explanation, no preamble.
+- The "recommendation" field must follow these rules exactly:
+  - "approve" if furniture_detected="yes" AND quality_score>=3 AND is_spam=false
+  - "reject" if furniture_detected="no" OR is_spam=true
+  - "review" for everything else (including furniture_detected="maybe")
+- quality_reasoning and spam_reason must each be a single concise sentence.
+- If is_spam is false, spam_reason must be null.`;
+
+const USER_PROMPT = `Classify this image. Return ONLY this JSON structure:
 
 {
-  "furniture": "Yes" | "No" | "Maybe",
-  "quality": 1-5,
-  "spam": "Yes" | "No"
-}
-
-Rules:
-- "furniture": Does this image contain furniture — specifically sofas, tables, chairs, beds, shelving, lighting, rugs, or home accessories? "Yes" if clearly present, "No" if none visible, "Maybe" if partially visible or uncertain.
-- "quality": Rate suitability for an ecommerce product page from 1 (unusable) to 5 (excellent). Consider: Is the product clearly visible and in focus? Is the lighting good? Is the composition clean? Is the resolution adequate?
-  - 5 = sharp, well-lit, product is hero, clean background
-  - 4 = good quality, minor issues
-  - 3 = acceptable, some problems (dim, cluttered, slightly off-center)
-  - 2 = poor (blurry, dark, product hard to see)
-  - 1 = unusable (extremely blurry, wrong content, unrecognizable)
-- "spam": Is this image a mood board, collage, screenshot, meme, text graphic, stock watermark overlay, or otherwise NOT a real customer photo? "Yes" if so, "No" if it appears to be a genuine photograph.
-
-Return ONLY the JSON.`;
+  "furniture_detected": "yes" | "no" | "maybe",
+  "product_category": "sofa | sectional | armchair | accent chair | dining table | coffee table | side table | console table | desk | bed frame | mattress | bookshelf | TV unit | cabinet | dresser | nightstand | desk chair | pendant light | floor lamp | table lamp | rug | ottoman | bench | outdoor furniture | home decor | none",
+  "quality_score": 1-5,
+  "quality_reasoning": "one sentence",
+  "is_spam": true | false,
+  "spam_reason": "one sentence or null",
+  "recommendation": "approve | review | reject"
+}`;
 
 // ─── Normalize + Bucket ───
 function normalizeResult(raw) {
-    // Normalize casing and types from model response
-    const furniture = capitalize(String(raw.furniture || 'Maybe'));
-    const spam = capitalize(String(raw.spam || 'No'));
-    const quality = Math.max(1, Math.min(5, Math.round(Number(raw.quality) || 1)));
-    return { furniture, quality, spam };
+    const furniture_detected = normalizeTernary(String(raw.furniture_detected || 'maybe'));
+    const product_category = String(raw.product_category || 'none').toLowerCase().trim();
+    const quality_score = Math.max(1, Math.min(5, Math.round(Number(raw.quality_score) || 1)));
+    const quality_reasoning = String(raw.quality_reasoning || '').trim() || null;
+    const is_spam = raw.is_spam === true || String(raw.is_spam).toLowerCase() === 'true';
+    const spam_reason = is_spam ? (String(raw.spam_reason || '').trim() || null) : null;
+    // Enforce recommendation rules client-side regardless of what model says
+    const recommendation = getAction(furniture_detected, quality_score, is_spam);
+    return { furniture_detected, product_category, quality_score, quality_reasoning, is_spam, spam_reason, recommendation };
 }
 
-function capitalize(s) {
+function normalizeTernary(s) {
     const lower = s.toLowerCase().trim();
-    if (lower === 'yes') return 'Yes';
-    if (lower === 'no') return 'No';
-    if (lower === 'maybe') return 'Maybe';
-    return s.trim();
+    if (lower === 'yes') return 'yes';
+    if (lower === 'no') return 'no';
+    return 'maybe';
 }
 
-function getAction(furniture, quality, spam) {
-    if (furniture === 'No' || spam === 'Yes') return 'Reject';
-    if (furniture === 'Yes' && quality >= 3 && spam === 'No') return 'Approve';
-    return 'Review';
+function getAction(furniture, quality, isSpam) {
+    if (furniture === 'no' || isSpam) return 'reject';
+    if (furniture === 'yes' && quality >= 3 && !isSpam) return 'approve';
+    return 'review';
 }
 
 // ─── API call ───
+function parseAPIResponse(data) {
+    const raw = (data.content?.[0]?.text || '').replace(/```json\s*/g, '').replace(/```/g, '').trim();
+    return JSON.parse(raw);
+}
+
 async function classifyBase64(base64, mediaType, apiKey) {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -285,12 +316,13 @@ async function classifyBase64(base64, mediaType, apiKey) {
         },
         body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 256,
+            max_tokens: 512,
+            system: SYSTEM_PROMPT,
             messages: [{
                 role: 'user',
                 content: [
                     { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-                    { type: 'text', text: PROMPT }
+                    { type: 'text', text: USER_PROMPT }
                 ]
             }]
         })
@@ -299,9 +331,7 @@ async function classifyBase64(base64, mediaType, apiKey) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || `API ${res.status}`);
     }
-    const data = await res.json();
-    const raw = (data.content?.[0]?.text || '').replace(/```json\s*/g, '').replace(/```/g, '').trim();
-    return JSON.parse(raw);
+    return parseAPIResponse(await res.json());
 }
 
 async function classifyUrl(url, apiKey) {
@@ -315,12 +345,13 @@ async function classifyUrl(url, apiKey) {
         },
         body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 256,
+            max_tokens: 512,
+            system: SYSTEM_PROMPT,
             messages: [{
                 role: 'user',
                 content: [
                     { type: 'image', source: { type: 'url', url } },
-                    { type: 'text', text: PROMPT }
+                    { type: 'text', text: USER_PROMPT }
                 ]
             }]
         })
@@ -329,9 +360,7 @@ async function classifyUrl(url, apiKey) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error?.message || `API ${res.status}`);
     }
-    const data = await res.json();
-    const raw = (data.content?.[0]?.text || '').replace(/```json\s*/g, '').replace(/```/g, '').trim();
-    return JSON.parse(raw);
+    return parseAPIResponse(await res.json());
 }
 
 // ─── File to base64 ───
@@ -376,12 +405,11 @@ async function processBatch(items) {
         try {
             const raw = await item.getClassification(apiKey);
             if (batchAborted) return;
-            const result = normalizeResult(raw);
-            const action = getAction(result.furniture, result.quality, result.spam);
-            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture: result.furniture, quality: result.quality, spam: result.spam, action });
+            const r = normalizeResult(raw);
+            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, ...r });
         } catch (err) {
             if (batchAborted) return;
-            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture: '—', quality: '—', spam: '—', action: 'Review', error: err.message });
+            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture_detected: '—', product_category: '—', quality_score: '—', quality_reasoning: null, is_spam: false, spam_reason: null, recommendation: 'review', error: err.message });
         }
         done++;
         progressCount.textContent = `${done} / ${total}`;
@@ -437,25 +465,31 @@ function handleUrls() {
 // ─── Render ───
 function renderTable() {
     // Counts
-    $('cApprove').textContent = rows.filter(r => r.action === 'Approve').length;
-    $('cReview').textContent = rows.filter(r => r.action === 'Review').length;
-    $('cReject').textContent = rows.filter(r => r.action === 'Reject').length;
+    $('cApprove').textContent = rows.filter(r => r.recommendation === 'approve').length;
+    $('cReview').textContent = rows.filter(r => r.recommendation === 'review').length;
+    $('cReject').textContent = rows.filter(r => r.recommendation === 'reject').length;
 
     tbody.innerHTML = rows.map((r, i) => {
-        const furnitureBadge = r.furniture === 'Yes' ? 'badge-yes' : r.furniture === 'No' ? 'badge-no' : 'badge-maybe';
-        const spamBadge = r.spam === 'Yes' ? 'badge-no' : r.spam === 'No' ? 'badge-yes' : '';
-        const actionBadge = r.action === 'Approve' ? 'badge-approve' : r.action === 'Reject' ? 'badge-reject' : 'badge-review';
+        const fd = r.furniture_detected;
+        const furnitureBadge = fd === 'yes' ? 'badge-yes' : fd === 'no' ? 'badge-no' : fd === 'maybe' ? 'badge-maybe' : '';
+        const spamBadge = r.is_spam ? 'badge-no' : 'badge-yes';
+        const spamLabel = r.is_spam ? 'Yes' : 'No';
+        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : 'badge-review';
 
-        const stars = typeof r.quality === 'number'
-            ? Array.from({length: 5}, (_, j) => `<span class="${j < r.quality ? 'star-on' : 'star-off'}">\u2605</span>`).join('')
+        const stars = typeof r.quality_score === 'number'
+            ? Array.from({length: 5}, (_, j) => `<span class="${j < r.quality_score ? 'star-on' : 'star-off'}">\u2605</span>`).join('')
             : '—';
+
+        const spamTip = r.spam_reason ? ` title="${escAttr(r.spam_reason)}"` : '';
 
         return `<tr>
             <td><div class="thumb-cell"><img class="thumb" src="${escAttr(r.thumbSrc)}" data-idx="${i}" alt="" onerror="this.style.display='none'"><span class="fname" title="${escAttr(r.name)}">${esc(r.name)}</span></div></td>
-            <td><span class="badge ${furnitureBadge}">${esc(r.furniture)}</span></td>
-            <td><span class="stars">${stars}</span>${typeof r.quality === 'number' ? ` <span style="color:var(--muted);font-size:0.75rem">(${r.quality}/5)</span>` : ''}</td>
-            <td>${r.spam !== '—' ? `<span class="badge ${spamBadge}">${esc(r.spam)}</span>` : '—'}</td>
-            <td><span class="badge ${actionBadge}">${esc(r.action)}</span>${r.error ? `<div class="error-cell">${esc(r.error)}</div>` : ''}</td>
+            <td>${fd !== '—' ? `<span class="badge ${furnitureBadge}">${esc(fd)}</span>` : '—'}</td>
+            <td style="font-size:0.78rem">${esc(r.product_category !== '—' && r.product_category !== 'none' ? r.product_category : '—')}</td>
+            <td><span class="stars">${stars}</span>${typeof r.quality_score === 'number' ? ` <span style="color:var(--muted);font-size:0.75rem">(${r.quality_score}/5)</span>` : ''}</td>
+            <td class="reasoning-cell" title="${escAttr(r.quality_reasoning || '')}">${esc(r.quality_reasoning || '—')}</td>
+            <td><span class="badge ${spamBadge}"${spamTip}>${esc(spamLabel)}</span>${r.spam_reason ? `<div class="spam-detail">${esc(r.spam_reason)}</div>` : ''}</td>
+            <td><span class="badge ${actionBadge}">${esc(r.recommendation)}</span>${r.error ? `<div class="error-cell">${esc(r.error)}</div>` : ''}</td>
         </tr>`;
     }).join('');
 }
@@ -473,8 +507,8 @@ function escAttr(s) {
 // ─── CSV Export ───
 function exportCSV() {
     if (!rows.length) return;
-    const header = ['Filename', 'Furniture Detected', 'Quality (1-5)', 'Spam', 'Recommended Action'];
-    const csvRows = rows.map(r => [r.name, r.furniture, r.quality, r.spam, r.action]);
+    const header = ['Filename', 'Furniture Detected', 'Product Category', 'Quality Score (1-5)', 'Quality Reasoning', 'Is Spam', 'Spam Reason', 'Recommendation'];
+    const csvRows = rows.map(r => [r.name, r.furniture_detected, r.product_category, r.quality_score, r.quality_reasoning || '', r.is_spam ? 'Yes' : 'No', r.spam_reason || '', r.recommendation]);
     const csv = '\uFEFF' + [header, ...csvRows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
