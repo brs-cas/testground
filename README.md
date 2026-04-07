@@ -1,38 +1,100 @@
-# UGC Image Classifier
+# Performance Marketing Platform
 
-A single-file browser tool that uses the Anthropic Claude Vision API to classify user-generated content images for furniture ecommerce.
+An in-house platform for managing, tracking, and optimizing performance marketing campaigns across multiple channels.
 
-![Screenshot](screenshot.png)
+## Features
 
-## What It Does
+- **Campaign Management** - Create, edit, and manage campaigns across channels (Google Ads, Meta, TikTok, etc.)
+- **Budget & Bid Optimization** - Automated budget allocation and bid strategies based on performance data
+- **Analytics Dashboard** - Real-time reporting on KPIs: ROAS, CPA, CTR, conversion rates
+- **Attribution Modeling** - Multi-touch attribution to understand the full customer journey
+- **Audience Management** - Segment and manage audiences for targeting and retargeting
+- **Creative Asset Library** - Centralized storage and performance tracking for ad creatives
+- **A/B Testing** - Built-in experimentation framework for ads, landing pages, and audiences
+- **Alerts & Anomaly Detection** - Automated alerts for budget pacing, performance drops, and anomalies
 
-For each image, the AI evaluates three things:
+## Tech Stack
 
-| Check | Output | Description |
-|-------|--------|-------------|
-| **Furniture detected?** | Yes / No / Maybe | Does the image contain sofas, tables, chairs, beds, shelving, lighting, rugs, or home accessories? |
-| **Quality score** | 1–5 stars | Is the image good enough for an ecommerce product page? (lighting, composition, resolution, product visibility) |
-| **Spam flag** | Yes / No | Is this a mood board, collage, screenshot, meme, or otherwise not a real customer photo? |
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React, TypeScript, Vite |
+| Backend API | Node.js, Express, TypeScript |
+| Database | PostgreSQL |
+| Cache | Redis |
+| Queue | Bull (Redis-backed) |
+| Testing | Jest, React Testing Library |
+| Linting | ESLint, Prettier |
 
-Results are bucketed into a recommended action:
+## Project Structure
 
-- **Approve** — Furniture = Yes AND Quality >= 3 AND Spam = No
-- **Reject** — Furniture = No OR Spam = Yes
-- **Review** — Everything else (human decides)
+```
+├── packages/
+│   ├── frontend/          # React SPA
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   ├── pages/
+│   │   │   ├── hooks/
+│   │   │   ├── services/
+│   │   │   ├── store/
+│   │   │   └── utils/
+│   │   └── package.json
+│   ├── backend/           # Express API server
+│   │   ├── src/
+│   │   │   ├── controllers/
+│   │   │   ├── services/
+│   │   │   ├── models/
+│   │   │   ├── routes/
+│   │   │   ├── middleware/
+│   │   │   └── utils/
+│   │   └── package.json
+│   └── shared/            # Shared types & utilities
+│       ├── src/
+│       │   ├── types/
+│       │   └── constants/
+│       └── package.json
+├── package.json           # Root workspace config
+└── tsconfig.base.json     # Shared TypeScript config
+```
 
-## Setup
+## Getting Started
 
-1. Open `index.html` in your browser. No install, no server, no dependencies.
-2. Paste your Anthropic API key in the top bar ([get one here](https://console.anthropic.com/)).
-3. Upload images (drag & drop or browse) or paste image URLs (one per line).
-4. Export results as CSV when done.
+### Prerequisites
 
-## API Cost
+- Node.js >= 20
+- PostgreSQL >= 15
+- Redis >= 7
 
-Each image = one API call to Claude Sonnet 4. Typical cost: ~$0.01–0.03 per image.
+### Installation
 
-Your API key stays in your browser's session storage and is only sent to the Anthropic API.
+```bash
+npm install
+```
+
+### Development
+
+```bash
+# Start all services
+npm run dev
+
+# Start frontend only
+npm run dev --workspace=packages/frontend
+
+# Start backend only
+npm run dev --workspace=packages/backend
+```
+
+### Testing
+
+```bash
+npm test
+```
+
+### Build
+
+```bash
+npm run build
+```
 
 ## License
 
-MIT
+Proprietary - Internal use only.

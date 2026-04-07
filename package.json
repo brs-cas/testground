@@ -1,0 +1,21 @@
+{
+  "name": "performance-marketing-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "In-house Performance Marketing Platform",
+  "workspaces": [
+    "packages/shared",
+    "packages/backend",
+    "packages/frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx}\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
