@@ -8,529 +8,414 @@
         :root {
             --bg: #0f1117;
             --surface: #1a1d27;
+            --surface2: #22252f;
             --border: #2a2d3a;
             --accent: #6c63ff;
             --accent-hover: #5a52e0;
             --text: #e4e4e7;
             --text-muted: #9ca3af;
             --green: #22c55e;
+            --green-bg: rgba(34,197,94,0.12);
             --yellow: #eab308;
+            --yellow-bg: rgba(234,179,8,0.12);
             --red: #ef4444;
+            --red-bg: rgba(239,68,68,0.12);
             --orange: #f97316;
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
+        /* ── Header ── */
+        header { border-bottom: 1px solid var(--border); padding: 0.75rem 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+        .logo { font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .logo span { color: var(--accent); }
+        .header-controls { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        .hdr-label { font-size: 0.75rem; color: var(--text-muted); }
+        .hdr-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+        .hdr-input:focus { outline: none; border-color: var(--accent); }
+        #apiKey { width: 240px; }
+        .hdr-select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.35rem 0.6rem; font-size: 0.8rem; }
+        .hdr-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.8rem; cursor: pointer; }
+        .hdr-btn:hover { border-color: var(--accent); color: var(--text); }
 
-        header {
-            border-bottom: 1px solid var(--border);
-            padding: 1rem 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 1rem;
-        }
+        /* ── Layout ── */
+        .app { display: flex; height: calc(100vh - 49px); }
+        .sidebar { width: 260px; min-width: 260px; border-right: 1px solid var(--border); padding: 1.25rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem; }
+        .main-area { flex: 1; overflow-y: auto; padding: 1.5rem; }
 
-        header h1 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
+        /* ── Sidebar ── */
+        .sb-section h3 { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.6rem; }
+        .sb-field { margin-bottom: 0.6rem; }
+        .sb-field label { font-size: 0.78rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem; }
+        .sb-field input[type="number"] { background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 0.3rem 0.5rem; font-size: 0.8rem; width: 100%; }
+        .sb-field input[type="number"]:focus { outline: none; border-color: var(--accent); }
+        .sb-hint { font-size: 0.7rem; color: var(--text-muted); margin-top: 0.2rem; line-height: 1.4; }
 
-        header h1 span { color: var(--accent); }
+        .bucket-summary { display: flex; flex-direction: column; gap: 0.5rem; }
+        .bucket-row { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 8px; cursor: pointer; transition: background 0.15s; }
+        .bucket-row:hover { background: var(--surface2); }
+        .bucket-row.active { background: var(--surface2); border: 1px solid var(--border); }
+        .bucket-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .bucket-dot.approve { background: var(--green); }
+        .bucket-dot.review { background: var(--yellow); }
+        .bucket-dot.reject { background: var(--red); }
+        .bucket-dot.all { background: var(--accent); }
+        .bucket-name { font-size: 0.82rem; flex: 1; }
+        .bucket-count { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); }
 
-        .api-key-group {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .api-key-group label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .api-key-group input {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            padding: 0.4rem 0.75rem;
-            font-size: 0.85rem;
-            width: 280px;
-        }
-
-        .api-key-group input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
-
-        .model-select {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            padding: 0.4rem 0.75rem;
-            font-size: 0.85rem;
-        }
-
-        main {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-
-        .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 12px;
-            padding: 3rem 2rem;
-            text-align: center;
-            cursor: pointer;
-            transition: border-color 0.2s, background 0.2s;
-            margin-bottom: 2rem;
-        }
-
-        .drop-zone:hover, .drop-zone.dragover {
-            border-color: var(--accent);
-            background: rgba(108, 99, 255, 0.05);
-        }
-
-        .drop-zone svg {
-            width: 48px;
-            height: 48px;
-            color: var(--text-muted);
-            margin-bottom: 1rem;
-        }
-
-        .drop-zone p { color: var(--text-muted); margin-top: 0.5rem; font-size: 0.9rem; }
+        /* ── Drop zone ── */
+        .drop-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 2.5rem 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; margin-bottom: 1.5rem; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(108,99,255,0.05); }
+        .drop-zone p { color: var(--text-muted); font-size: 0.85rem; margin-top: 0.4rem; }
         .drop-zone .browse { color: var(--accent); text-decoration: underline; cursor: pointer; }
+        .drop-zone svg { width: 40px; height: 40px; color: var(--text-muted); }
 
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-            gap: 1.5rem;
-        }
+        /* ── Progress bar ── */
+        .progress-wrap { margin-bottom: 1.5rem; }
+        .progress-header { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+        .progress-track { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease; width: 0; }
 
-        .card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
-            transition: border-color 0.2s;
-        }
+        /* ── Toolbar ── */
+        .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+        .toolbar-left { display: flex; align-items: center; gap: 0.5rem; }
+        .toolbar-right { display: flex; align-items: center; gap: 0.5rem; }
+        .btn { padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); transition: all 0.15s; }
+        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-ghost { background: transparent; color: var(--text-muted); }
+        .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .search-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0.35rem 0.6rem; font-size: 0.8rem; width: 200px; }
+        .search-input:focus { outline: none; border-color: var(--accent); }
 
-        .card:hover { border-color: var(--accent); }
+        /* ── Results table ── */
+        .results-table { width: 100%; border-collapse: collapse; }
+        .results-table th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); cursor: pointer; user-select: none; white-space: nowrap; }
+        .results-table th:hover { color: var(--text); }
+        .results-table th .sort-arrow { margin-left: 0.25rem; font-size: 0.65rem; }
+        .results-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.82rem; vertical-align: middle; }
+        .results-table tr:hover td { background: var(--surface); }
+        .results-table tr.is-duplicate td { opacity: 0.55; }
 
-        .card-img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-            display: block;
-            background: var(--bg);
-        }
+        .thumb-cell { display: flex; align-items: center; gap: 0.75rem; }
+        .thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--surface2); flex-shrink: 0; cursor: pointer; }
+        .thumb-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
 
-        .card-body { padding: 1.25rem; }
+        .badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+        .badge-approve { background: var(--green-bg); color: var(--green); }
+        .badge-review { background: var(--yellow-bg); color: var(--yellow); }
+        .badge-reject { background: var(--red-bg); color: var(--red); }
 
-        .card-filename {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-bottom: 0.75rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
+        .score-pill { display: inline-block; min-width: 32px; text-align: center; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+        .score-high { background: var(--green-bg); color: var(--green); }
+        .score-mid { background: var(--yellow-bg); color: var(--yellow); }
+        .score-low { background: var(--red-bg); color: var(--red); }
 
-        .badge {
-            display: inline-block;
-            padding: 0.2rem 0.65rem;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-        }
+        .dup-tag { font-size: 0.7rem; color: var(--orange); font-weight: 500; }
+        .indicators-cell { font-size: 0.75rem; color: var(--text-muted); max-width: 260px; line-height: 1.4; }
 
-        .badge-ugc { background: rgba(234, 179, 8, 0.15); color: var(--yellow); }
-        .badge-professional { background: rgba(34, 197, 94, 0.15); color: var(--green); }
-        .badge-mixed { background: rgba(249, 115, 22, 0.15); color: var(--orange); }
-        .badge-unclear { background: rgba(156, 163, 175, 0.15); color: var(--text-muted); }
+        /* ── Empty state ── */
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); font-size: 0.9rem; }
 
-        .score-row {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin: 0.75rem 0;
-        }
+        /* ── Preview modal ── */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+        .modal-overlay.hidden { display: none; }
+        .modal-img { max-width: 90vw; max-height: 85vh; border-radius: 8px; }
+        .modal-close { position: fixed; top: 1rem; right: 1.5rem; background: none; border: none; color: #fff; font-size: 2rem; cursor: pointer; z-index: 1001; }
 
-        .score-bar-bg {
-            flex: 1;
-            height: 6px;
-            background: var(--bg);
-            border-radius: 3px;
-            overflow: hidden;
-        }
-
-        .score-bar {
-            height: 100%;
-            border-radius: 3px;
-            transition: width 0.4s ease;
-        }
-
-        .score-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            min-width: 90px;
-        }
-
-        .score-value {
-            font-size: 0.8rem;
-            font-weight: 600;
-            min-width: 36px;
-            text-align: right;
-        }
-
-        .detail-list { list-style: none; margin-top: 0.75rem; }
-
-        .detail-list li {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            padding: 0.3rem 0;
-            display: flex;
-            gap: 0.5rem;
-        }
-
-        .detail-list li strong {
-            color: var(--text);
-            min-width: 110px;
-        }
-
-        .suggestions {
-            margin-top: 0.75rem;
-            padding: 0.75rem;
-            background: var(--bg);
-            border-radius: 8px;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-
-        .suggestions-title {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--text);
-            margin-bottom: 0.35rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .card-loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 2rem;
-        }
-
-        .spinner {
-            width: 28px;
-            height: 28px;
-            border: 3px solid var(--border);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 0.7s linear infinite;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .card-error {
-            padding: 1.25rem;
-            color: var(--red);
-            font-size: 0.85rem;
-        }
-
-        .batch-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1rem;
-            padding: 0.75rem 1rem;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            font-size: 0.85rem;
-        }
-
-        .batch-bar button {
-            background: var(--accent);
-            color: #fff;
-            border: none;
-            padding: 0.4rem 1rem;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.8rem;
-            font-weight: 500;
-        }
-
-        .batch-bar button:hover { background: var(--accent-hover); }
-        .batch-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-        .hidden { display: none; }
-
-        @media (max-width: 600px) {
-            main { padding: 1rem; }
-            .results-grid { grid-template-columns: 1fr; }
-            header { padding: 1rem; }
-            .api-key-group input { width: 180px; }
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .sidebar { display: none; }
+            .app { display: block; height: auto; }
+            .main-area { padding: 1rem; }
         }
     </style>
 </head>
 <body>
 
 <header>
-    <h1>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+    <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
         <span>UGC</span> Image Classifier
-    </h1>
-    <div class="api-key-group">
-        <label for="apiKey">Anthropic API Key</label>
-        <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off">
-        <select id="modelSelect" class="model-select">
+    </div>
+    <div class="header-controls">
+        <span class="hdr-label">API Key</span>
+        <input type="password" id="apiKey" class="hdr-input" placeholder="sk-ant-..." autocomplete="off">
+        <select id="modelSelect" class="hdr-select">
             <option value="claude-sonnet-4-20250514">Sonnet 4</option>
-            <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+            <option value="claude-haiku-4-5-20251001">Haiku 4.5 (fast)</option>
         </select>
+        <button class="hdr-btn" id="settingsToggle" title="Toggle sidebar">Settings</button>
     </div>
 </header>
 
-<main>
-    <div class="drop-zone" id="dropZone">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <p>Drag &amp; drop furniture images here</p>
-        <p>or <span class="browse" id="browseBtn">browse files</span></p>
-        <p style="font-size:0.75rem;margin-top:0.5rem;">Supports JPG, PNG, WebP, GIF &middot; Multiple files OK</p>
-        <input type="file" id="fileInput" accept="image/*" multiple hidden>
-    </div>
+<div class="app">
+    <!-- Sidebar: thresholds & summary -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sb-section">
+            <h3>Buckets</h3>
+            <div class="bucket-summary" id="bucketSummary">
+                <div class="bucket-row active" data-filter="all">
+                    <div class="bucket-dot all"></div>
+                    <span class="bucket-name">All images</span>
+                    <span class="bucket-count" id="countAll">0</span>
+                </div>
+                <div class="bucket-row" data-filter="approve">
+                    <div class="bucket-dot approve"></div>
+                    <span class="bucket-name">Auto-approve</span>
+                    <span class="bucket-count" id="countApprove">0</span>
+                </div>
+                <div class="bucket-row" data-filter="review">
+                    <div class="bucket-dot review"></div>
+                    <span class="bucket-name">Needs review</span>
+                    <span class="bucket-count" id="countReview">0</span>
+                </div>
+                <div class="bucket-row" data-filter="reject">
+                    <div class="bucket-dot reject"></div>
+                    <span class="bucket-name">Auto-reject</span>
+                    <span class="bucket-count" id="countReject">0</span>
+                </div>
+            </div>
+        </div>
 
-    <div class="batch-bar hidden" id="batchBar">
-        <span id="batchStatus">0 / 0 classified</span>
-        <button id="clearBtn">Clear All</button>
-    </div>
+        <div class="sb-section">
+            <h3>Auto-approve thresholds</h3>
+            <div class="sb-field">
+                <label>Min quality score</label>
+                <input type="number" id="threshApproveQuality" value="70" min="0" max="100">
+            </div>
+            <div class="sb-field">
+                <label>Min lighting score</label>
+                <input type="number" id="threshApproveLighting" value="60" min="0" max="100">
+            </div>
+            <div class="sb-field">
+                <label>Min composition score</label>
+                <input type="number" id="threshApproveComposition" value="60" min="0" max="100">
+            </div>
+            <p class="sb-hint">Images above ALL thresholds with furniture detected and no issues are auto-approved.</p>
+        </div>
 
-    <div class="results-grid" id="resultsGrid"></div>
-</main>
+        <div class="sb-section">
+            <h3>Auto-reject thresholds</h3>
+            <div class="sb-field">
+                <label>Max quality score</label>
+                <input type="number" id="threshRejectQuality" value="30" min="0" max="100">
+            </div>
+            <p class="sb-hint">Images below this quality OR flagged as spam/no furniture are auto-rejected.</p>
+        </div>
+
+        <div class="sb-section">
+            <h3>Duplicate detection</h3>
+            <div class="sb-field">
+                <label>Hamming distance threshold</label>
+                <input type="number" id="threshDupDistance" value="10" min="0" max="64">
+            </div>
+            <p class="sb-hint">Lower = stricter matching. Images within this distance of a previous image are flagged as duplicates (auto-reject).</p>
+        </div>
+
+        <div class="sb-section">
+            <h3>Concurrency</h3>
+            <div class="sb-field">
+                <label>Parallel API calls</label>
+                <input type="number" id="concurrency" value="3" min="1" max="10">
+            </div>
+            <p class="sb-hint">Higher = faster but more API rate-limit risk.</p>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <div class="main-area">
+        <div class="drop-zone" id="dropZone">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <p>Drag &amp; drop UGC images here, or <span class="browse" id="browseBtn">browse files</span></p>
+            <p style="font-size:0.72rem;margin-top:0.3rem;">JPG, PNG, WebP, GIF &middot; Drop up to 300 at once</p>
+            <input type="file" id="fileInput" accept="image/*" multiple hidden>
+        </div>
+
+        <div class="progress-wrap hidden" id="progressWrap">
+            <div class="progress-header">
+                <span id="progressLabel">Classifying...</span>
+                <span id="progressCount">0 / 0</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        </div>
+
+        <div class="toolbar hidden" id="toolbar">
+            <div class="toolbar-left">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search filenames...">
+            </div>
+            <div class="toolbar-right">
+                <button class="btn btn-ghost" id="clearBtn">Clear all</button>
+                <button class="btn btn-primary" id="exportBtn">Export CSV</button>
+            </div>
+        </div>
+
+        <table class="results-table hidden" id="resultsTable">
+            <thead>
+                <tr>
+                    <th data-sort="filename">Image <span class="sort-arrow"></span></th>
+                    <th data-sort="bucket">Bucket <span class="sort-arrow"></span></th>
+                    <th data-sort="furniture_type">Furniture <span class="sort-arrow"></span></th>
+                    <th data-sort="quality_score">Quality <span class="sort-arrow"></span></th>
+                    <th data-sort="lighting_score">Light <span class="sort-arrow"></span></th>
+                    <th data-sort="composition_score">Comp <span class="sort-arrow"></span></th>
+                    <th data-sort="background_score">BG <span class="sort-arrow"></span></th>
+                    <th>Flags</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody"></tbody>
+        </table>
+
+        <div class="empty-state" id="emptyState">Drop images above to get started</div>
+    </div>
+</div>
+
+<!-- Image preview modal -->
+<div class="modal-overlay hidden" id="modal">
+    <button class="modal-close" id="modalClose">&times;</button>
+    <img class="modal-img" id="modalImg" src="" alt="preview">
+</div>
 
 <script>
-const CLASSIFY_PROMPT = `You are a UGC (User-Generated Content) image classifier for a furniture ecommerce platform.
-
-Analyze the provided image and return a JSON object with the following fields:
+// ─────────────────────────────────────────────
+//  PROMPT
+// ─────────────────────────────────────────────
+const CLASSIFY_PROMPT = `You are a UGC image classifier for a furniture ecommerce company. Analyze this image and return ONLY a JSON object (no markdown, no explanation):
 
 {
-  "classification": "ugc" | "professional" | "mixed" | "unclear",
-  "confidence": 0-100,
-  "furniture_type": "string — the type of furniture shown (e.g., sofa, dining table, bookshelf, bed, desk, chair, etc.) or 'none' if no furniture is visible",
+  "furniture_detected": true/false,
+  "furniture_type": "sofa | dining table | bed | desk | chair | bookshelf | coffee table | nightstand | dresser | cabinet | outdoor furniture | lighting | rug | decor | other | none",
   "quality_score": 0-100,
   "lighting_score": 0-100,
   "composition_score": 0-100,
   "background_score": 0-100,
-  "indicators": ["list of reasons for your classification"],
-  "suggestions": "If UGC or low quality, give 1-2 brief actionable tips to improve the photo for ecommerce listing. Otherwise say 'N/A'."
+  "is_blurry": true/false,
+  "is_spam": true/false,
+  "spam_reason": "string or null — e.g. mood board, screenshot, text overlay, meme, collage, watermarked stock, unrelated content",
+  "aesthetic_appeal": 0-100,
+  "indicators": ["1-3 short reasons for scores"],
+  "suggestion": "One actionable tip to improve this photo for ecommerce, or null if already good"
 }
 
-Classification guidelines:
-- "ugc": Taken by a regular person — phone camera, casual framing, home setting with clutter, uneven lighting, reflections, visible personal items, etc.
-- "professional": Studio or staged — even lighting, clean background, styled scene, high resolution, deliberate composition.
-- "mixed": Has elements of both (e.g., professionally edited UGC, or casual-looking staged photos).
-- "unclear": Not enough information, not a furniture photo, or ambiguous.
+Scoring guide:
+- quality_score: sharpness, resolution, noise, exposure (100 = DSLR-quality, 0 = unusable)
+- lighting_score: even, warm, natural light scores high; harsh flash, backlit, dark scores low
+- composition_score: furniture centered/prominent, good angle, minimal clutter
+- background_score: tidy real-home setting or styled scores high; messy, distracting scores low
+- aesthetic_appeal: overall "would this look good on a product page?" score
+- is_spam: true if the image is a mood board, collage, screenshot, meme, heavy text overlay, or has no real photograph of a space/product
+- is_blurry: true if motion blur or out-of-focus makes the furniture hard to see clearly`;
 
-Scoring guidelines (0-100):
-- quality_score: Overall image quality (sharpness, resolution, noise)
-- lighting_score: Evenness and appeal of lighting
-- composition_score: Framing, angle, rule-of-thirds, centering
-- background_score: Cleanliness and appeal of background/staging
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+let results = [];          // { id, filename, thumbUrl, bucket, data, hash, dupOf }
+let activeFilter = 'all';
+let sortCol = null;
+let sortAsc = true;
+let knownHashes = [];      // { hash: Uint8Array, filename: string }
 
-Return ONLY the JSON object, no markdown fences, no explanation.`;
+// ─────────────────────────────────────────────
+//  DOM REFS
+// ─────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const dropZone = $('dropZone'), fileInput = $('fileInput'), browseBtn = $('browseBtn');
+const progressWrap = $('progressWrap'), progressLabel = $('progressLabel'), progressCount = $('progressCount'), progressFill = $('progressFill');
+const toolbar = $('toolbar'), searchInput = $('searchInput'), clearBtn = $('clearBtn'), exportBtn = $('exportBtn');
+const resultsTable = $('resultsTable'), resultsBody = $('resultsBody'), emptyState = $('emptyState');
+const modal = $('modal'), modalImg = $('modalImg'), modalClose = $('modalClose');
+const apiKeyInput = $('apiKey'), modelSelect = $('modelSelect');
+const sidebar = $('sidebar'), settingsToggle = $('settingsToggle');
 
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const browseBtn = document.getElementById('browseBtn');
-const resultsGrid = document.getElementById('resultsGrid');
-const batchBar = document.getElementById('batchBar');
-const batchStatus = document.getElementById('batchStatus');
-const clearBtn = document.getElementById('clearBtn');
-const apiKeyInput = document.getElementById('apiKey');
-const modelSelect = document.getElementById('modelSelect');
-
-let totalCount = 0;
-let doneCount = 0;
-
-// Persist API key in sessionStorage
+// Persist API key
 apiKeyInput.value = sessionStorage.getItem('anthropic_key') || '';
-apiKeyInput.addEventListener('input', () => {
-    sessionStorage.setItem('anthropic_key', apiKeyInput.value);
-});
+apiKeyInput.addEventListener('input', () => sessionStorage.setItem('anthropic_key', apiKeyInput.value));
 
-// Drop zone events
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    handleFiles(e.dataTransfer.files);
-});
-browseBtn.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('click', e => { if (e.target === dropZone || e.target.closest('.drop-zone')) fileInput.click(); });
-fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileInput.value = ''; });
+// ─────────────────────────────────────────────
+//  PERCEPTUAL HASH (dHash 8x8 = 64-bit)
+// ─────────────────────────────────────────────
+function computeDHash(imageElement) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 9;
+    canvas.height = 8;
+    ctx.drawImage(imageElement, 0, 0, 9, 8);
+    const pixels = ctx.getImageData(0, 0, 9, 8).data;
 
-clearBtn.addEventListener('click', () => {
-    resultsGrid.innerHTML = '';
-    totalCount = 0;
-    doneCount = 0;
-    batchBar.classList.add('hidden');
-});
+    // Convert to grayscale row-by-row, compare adjacent
+    const hash = new Uint8Array(8); // 64 bits = 8 bytes
+    let bitIndex = 0;
+    for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+            const leftIdx = (y * 9 + x) * 4;
+            const rightIdx = (y * 9 + x + 1) * 4;
+            const leftGray = pixels[leftIdx] * 0.299 + pixels[leftIdx + 1] * 0.587 + pixels[leftIdx + 2] * 0.114;
+            const rightGray = pixels[rightIdx] * 0.299 + pixels[rightIdx + 1] * 0.587 + pixels[rightIdx + 2] * 0.114;
+            if (leftGray > rightGray) {
+                hash[Math.floor(bitIndex / 8)] |= (1 << (bitIndex % 8));
+            }
+            bitIndex++;
+        }
+    }
+    return hash;
+}
 
-function handleFiles(files) {
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey) {
-        alert('Please enter your Anthropic API key first.');
-        apiKeyInput.focus();
-        return;
+function hammingDistance(a, b) {
+    let dist = 0;
+    for (let i = 0; i < 8; i++) {
+        let xor = a[i] ^ b[i];
+        while (xor) { dist += xor & 1; xor >>= 1; }
+    }
+    return dist;
+}
+
+function loadImageElement(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// ─────────────────────────────────────────────
+//  BUCKETING LOGIC
+// ─────────────────────────────────────────────
+function assignBucket(data, isDuplicate) {
+    // Auto-reject conditions
+    if (isDuplicate) return 'reject';
+    if (!data.furniture_detected) return 'reject';
+    if (data.is_spam) return 'reject';
+    if (data.is_blurry) return 'reject';
+
+    const rejectQuality = parseInt($('threshRejectQuality').value) || 30;
+    if (data.quality_score <= rejectQuality) return 'reject';
+
+    // Auto-approve conditions
+    const approveQuality = parseInt($('threshApproveQuality').value) || 70;
+    const approveLighting = parseInt($('threshApproveLighting').value) || 60;
+    const approveComposition = parseInt($('threshApproveComposition').value) || 60;
+
+    if (
+        data.quality_score >= approveQuality &&
+        data.lighting_score >= approveLighting &&
+        data.composition_score >= approveComposition &&
+        !data.is_blurry &&
+        !data.is_spam &&
+        data.furniture_detected
+    ) {
+        return 'approve';
     }
 
-    const images = [...files].filter(f => f.type.startsWith('image/'));
-    if (!images.length) return;
-
-    totalCount += images.length;
-    batchBar.classList.remove('hidden');
-    updateBatchStatus();
-
-    images.forEach(file => classifyImage(file, apiKey));
+    // Everything else
+    return 'review';
 }
 
-function updateBatchStatus() {
-    batchStatus.textContent = `${doneCount} / ${totalCount} classified`;
-}
-
-async function classifyImage(file, apiKey) {
-    const cardId = 'card-' + Math.random().toString(36).slice(2, 10);
-    const imgUrl = URL.createObjectURL(file);
-
-    // Insert loading card
-    resultsGrid.insertAdjacentHTML('beforeend', `
-        <div class="card" id="${cardId}">
-            <img class="card-img" src="${imgUrl}" alt="${file.name}">
-            <div class="card-body">
-                <div class="card-filename">${file.name}</div>
-                <div class="card-loading"><div class="spinner"></div></div>
-            </div>
-        </div>
-    `);
-
-    try {
-        const base64 = await fileToBase64(file);
-        const mediaType = file.type || 'image/jpeg';
-        const model = modelSelect.value;
-
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01',
-                'anthropic-dangerous-direct-browser-access': 'true'
-            },
-            body: JSON.stringify({
-                model: model,
-                max_tokens: 1024,
-                messages: [{
-                    role: 'user',
-                    content: [
-                        { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-                        { type: 'text', text: CLASSIFY_PROMPT }
-                    ]
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error?.message || `API error ${response.status}`);
-        }
-
-        const data = await response.json();
-        const text = data.content?.[0]?.text || '';
-        const result = JSON.parse(text);
-        renderResult(cardId, file.name, result);
-    } catch (err) {
-        const card = document.getElementById(cardId);
-        if (card) {
-            card.querySelector('.card-loading')?.remove();
-            card.querySelector('.card-body').insertAdjacentHTML('beforeend',
-                `<div class="card-error">Error: ${err.message}</div>`
-            );
-        }
-    } finally {
-        doneCount++;
-        updateBatchStatus();
-    }
-}
-
-function renderResult(cardId, filename, r) {
-    const card = document.getElementById(cardId);
-    if (!card) return;
-
-    const badgeClass = {
-        ugc: 'badge-ugc',
-        professional: 'badge-professional',
-        mixed: 'badge-mixed',
-        unclear: 'badge-unclear'
-    }[r.classification] || 'badge-unclear';
-
-    const barColor = score => score >= 70 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--red)';
-
-    const scores = [
-        ['Quality', r.quality_score],
-        ['Lighting', r.lighting_score],
-        ['Composition', r.composition_score],
-        ['Background', r.background_score]
-    ];
-
-    const scoresHtml = scores.map(([label, val]) => `
-        <div class="score-row">
-            <span class="score-label">${label}</span>
-            <div class="score-bar-bg">
-                <div class="score-bar" style="width:${val}%;background:${barColor(val)}"></div>
-            </div>
-            <span class="score-value">${val}</span>
-        </div>
-    `).join('');
-
-    const indicatorsHtml = (r.indicators || []).map(i => `<li>· ${i}</li>`).join('');
-
-    const suggestionsHtml = r.suggestions && r.suggestions !== 'N/A'
-        ? `<div class="suggestions"><div class="suggestions-title">Suggestions</div>${r.suggestions}</div>` : '';
-
-    card.querySelector('.card-body').innerHTML = `
-        <div class="card-filename">${filename}</div>
-        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
-            <span class="badge ${badgeClass}">${r.classification}</span>
-            <span style="font-size:0.8rem;color:var(--text-muted)">Confidence: <strong style="color:var(--text)">${r.confidence}%</strong></span>
-        </div>
-        <ul class="detail-list">
-            <li><strong>Furniture</strong> ${r.furniture_type}</li>
-        </ul>
-        ${scoresHtml}
-        ${indicatorsHtml ? `<ul class="detail-list" style="margin-top:0.5rem">${indicatorsHtml}</ul>` : ''}
-        ${suggestionsHtml}
-    `;
-}
-
+// ─────────────────────────────────────────────
+//  API CALL
+// ─────────────────────────────────────────────
 function fileToBase64(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -539,6 +424,314 @@ function fileToBase64(file) {
         reader.readAsDataURL(file);
     });
 }
+
+async function classifyWithAPI(file, apiKey, model) {
+    const base64 = await fileToBase64(file);
+    const mediaType = file.type || 'image/jpeg';
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+            model,
+            max_tokens: 1024,
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+                    { type: 'text', text: CLASSIFY_PROMPT }
+                ]
+            }]
+        })
+    });
+
+    if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error?.message || `API error ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
+    // Strip markdown fences if present
+    const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    return JSON.parse(cleaned);
+}
+
+// ─────────────────────────────────────────────
+//  BATCH PROCESSING WITH CONCURRENCY CONTROL
+// ─────────────────────────────────────────────
+async function processBatch(files) {
+    const apiKey = apiKeyInput.value.trim();
+    if (!apiKey) { alert('Please enter your Anthropic API key first.'); apiKeyInput.focus(); return; }
+
+    const images = [...files].filter(f => f.type.startsWith('image/'));
+    if (!images.length) return;
+
+    const model = modelSelect.value;
+    const concurrency = Math.max(1, Math.min(10, parseInt($('concurrency').value) || 3));
+    const dupThreshold = parseInt($('threshDupDistance').value) || 10;
+
+    // Show progress
+    progressWrap.classList.remove('hidden');
+    toolbar.classList.remove('hidden');
+    resultsTable.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+
+    let done = 0;
+    const total = images.length;
+    const updateProgress = () => {
+        done++;
+        progressCount.textContent = `${done} / ${total}`;
+        progressFill.style.width = `${(done / total) * 100}%`;
+        if (done === total) progressLabel.textContent = 'Done!';
+    };
+    progressCount.textContent = `0 / ${total}`;
+    progressLabel.textContent = 'Classifying...';
+    progressFill.style.width = '0%';
+
+    // Semaphore for concurrency
+    let running = 0;
+    const queue = [...images];
+
+    async function processNext() {
+        if (!queue.length) return;
+        const file = queue.shift();
+        running++;
+
+        const id = Math.random().toString(36).slice(2, 10);
+        const thumbUrl = URL.createObjectURL(file);
+
+        // Compute perceptual hash
+        let hash = null;
+        let dupOf = null;
+        try {
+            const imgEl = await loadImageElement(file);
+            hash = computeDHash(imgEl);
+            // Check against known hashes
+            for (const known of knownHashes) {
+                if (hammingDistance(hash, known.hash) <= dupThreshold) {
+                    dupOf = known.filename;
+                    break;
+                }
+            }
+            knownHashes.push({ hash, filename: file.name });
+        } catch (e) { /* hash failure is non-fatal */ }
+
+        // If duplicate, skip API call
+        if (dupOf) {
+            const entry = {
+                id, filename: file.name, thumbUrl, bucket: 'reject',
+                data: { furniture_detected: false, furniture_type: 'N/A', quality_score: 0, lighting_score: 0, composition_score: 0, background_score: 0, aesthetic_appeal: 0, is_blurry: false, is_spam: false, spam_reason: null, indicators: ['Duplicate image'], suggestion: null },
+                dupOf
+            };
+            results.push(entry);
+            renderTable();
+            updateProgress();
+            running--;
+            processNext();
+            return;
+        }
+
+        // Call API
+        try {
+            const data = await classifyWithAPI(file, apiKey, model);
+            const bucket = assignBucket(data, false);
+            results.push({ id, filename: file.name, thumbUrl, bucket, data, dupOf: null });
+        } catch (err) {
+            results.push({
+                id, filename: file.name, thumbUrl, bucket: 'review',
+                data: { furniture_detected: false, furniture_type: 'error', quality_score: 0, lighting_score: 0, composition_score: 0, background_score: 0, aesthetic_appeal: 0, is_blurry: false, is_spam: false, spam_reason: null, indicators: [`Error: ${err.message}`], suggestion: null },
+                dupOf: null, error: true
+            });
+        }
+
+        renderTable();
+        updateProgress();
+        running--;
+        processNext();
+    }
+
+    // Kick off initial concurrent workers
+    const workers = [];
+    for (let i = 0; i < Math.min(concurrency, images.length); i++) {
+        workers.push(processNext());
+    }
+    await Promise.all(workers);
+}
+
+// ─────────────────────────────────────────────
+//  RENDERING
+// ─────────────────────────────────────────────
+function renderTable() {
+    updateCounts();
+    const search = searchInput.value.toLowerCase();
+
+    let filtered = results;
+    if (activeFilter !== 'all') {
+        filtered = filtered.filter(r => r.bucket === activeFilter);
+    }
+    if (search) {
+        filtered = filtered.filter(r => r.filename.toLowerCase().includes(search));
+    }
+    if (sortCol) {
+        filtered = [...filtered].sort((a, b) => {
+            let va = sortCol === 'filename' ? a.filename : sortCol === 'bucket' ? a.bucket : (a.data[sortCol] ?? 0);
+            let vb = sortCol === 'filename' ? b.filename : sortCol === 'bucket' ? b.bucket : (b.data[sortCol] ?? 0);
+            if (typeof va === 'string') va = va.toLowerCase();
+            if (typeof vb === 'string') vb = vb.toLowerCase();
+            if (va < vb) return sortAsc ? -1 : 1;
+            if (va > vb) return sortAsc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    resultsBody.innerHTML = filtered.map(r => {
+        const d = r.data;
+        const scorePill = (val) => {
+            const cls = val >= 70 ? 'score-high' : val >= 40 ? 'score-mid' : 'score-low';
+            return `<span class="score-pill ${cls}">${val}</span>`;
+        };
+        const bucketBadge = { approve: 'badge-approve', review: 'badge-review', reject: 'badge-reject' }[r.bucket];
+
+        const flags = [];
+        if (r.dupOf) flags.push(`<span class="dup-tag">DUP of ${escHtml(r.dupOf)}</span>`);
+        if (d.is_blurry) flags.push('<span class="dup-tag">BLURRY</span>');
+        if (d.is_spam) flags.push(`<span class="dup-tag">SPAM${d.spam_reason ? ': ' + escHtml(d.spam_reason) : ''}</span>`);
+        if (!d.furniture_detected && !r.dupOf) flags.push('<span class="dup-tag">NO FURNITURE</span>');
+        if (r.error) flags.push('<span class="dup-tag">API ERROR</span>');
+
+        const reason = (d.indicators || []).join('; ');
+
+        return `<tr class="${r.dupOf ? 'is-duplicate' : ''}">
+            <td><div class="thumb-cell"><img class="thumb" src="${r.thumbUrl}" data-id="${r.id}" alt=""><span class="thumb-name" title="${escHtml(r.filename)}">${escHtml(r.filename)}</span></div></td>
+            <td><span class="badge ${bucketBadge}">${r.bucket === 'approve' ? 'Approve' : r.bucket === 'review' ? 'Review' : 'Reject'}</span></td>
+            <td>${escHtml(d.furniture_type || 'N/A')}</td>
+            <td>${scorePill(d.quality_score)}</td>
+            <td>${scorePill(d.lighting_score)}</td>
+            <td>${scorePill(d.composition_score)}</td>
+            <td>${scorePill(d.background_score)}</td>
+            <td>${flags.join(' ') || '—'}</td>
+            <td class="indicators-cell" title="${escHtml(reason)}">${escHtml(reason)}</td>
+        </tr>`;
+    }).join('');
+}
+
+function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str || '';
+    return d.innerHTML;
+}
+
+function updateCounts() {
+    $('countAll').textContent = results.length;
+    $('countApprove').textContent = results.filter(r => r.bucket === 'approve').length;
+    $('countReview').textContent = results.filter(r => r.bucket === 'review').length;
+    $('countReject').textContent = results.filter(r => r.bucket === 'reject').length;
+}
+
+// ─────────────────────────────────────────────
+//  CSV EXPORT
+// ─────────────────────────────────────────────
+function exportCSV() {
+    const header = ['Filename', 'Bucket', 'Furniture Type', 'Quality', 'Lighting', 'Composition', 'Background', 'Aesthetic', 'Blurry', 'Spam', 'Spam Reason', 'Duplicate Of', 'Indicators', 'Suggestion'];
+    const rows = results.map(r => {
+        const d = r.data;
+        return [
+            r.filename,
+            r.bucket,
+            d.furniture_type || '',
+            d.quality_score,
+            d.lighting_score,
+            d.composition_score,
+            d.background_score,
+            d.aesthetic_appeal || 0,
+            d.is_blurry ? 'Yes' : 'No',
+            d.is_spam ? 'Yes' : 'No',
+            d.spam_reason || '',
+            r.dupOf || '',
+            (d.indicators || []).join('; '),
+            d.suggestion || ''
+        ];
+    });
+
+    const csvContent = [header, ...rows].map(row =>
+        row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ugc-classification-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────────────
+//  EVENT LISTENERS
+// ─────────────────────────────────────────────
+
+// Drop zone
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); processBatch(e.dataTransfer.files); });
+browseBtn.addEventListener('click', e => { e.stopPropagation(); fileInput.click(); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => { processBatch(fileInput.files); fileInput.value = ''; });
+
+// Toolbar
+clearBtn.addEventListener('click', () => {
+    results = []; knownHashes = [];
+    renderTable();
+    progressWrap.classList.add('hidden');
+    toolbar.classList.add('hidden');
+    resultsTable.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+});
+exportBtn.addEventListener('click', exportCSV);
+searchInput.addEventListener('input', renderTable);
+
+// Sidebar filter
+document.querySelectorAll('.bucket-row').forEach(row => {
+    row.addEventListener('click', () => {
+        document.querySelectorAll('.bucket-row').forEach(r => r.classList.remove('active'));
+        row.classList.add('active');
+        activeFilter = row.dataset.filter;
+        renderTable();
+    });
+});
+
+// Table sorting
+document.querySelectorAll('.results-table th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+        const col = th.dataset.sort;
+        if (sortCol === col) { sortAsc = !sortAsc; }
+        else { sortCol = col; sortAsc = true; }
+        // Update arrow indicators
+        document.querySelectorAll('.results-table th .sort-arrow').forEach(s => s.textContent = '');
+        th.querySelector('.sort-arrow').textContent = sortAsc ? ' ▲' : ' ▼';
+        renderTable();
+    });
+});
+
+// Image preview modal
+resultsBody.addEventListener('click', e => {
+    const thumb = e.target.closest('.thumb');
+    if (thumb) { modalImg.src = thumb.src; modal.classList.remove('hidden'); }
+});
+modalClose.addEventListener('click', () => modal.classList.add('hidden'));
+modal.addEventListener('click', e => { if (e.target === modal) modal.classList.add('hidden'); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') modal.classList.add('hidden'); });
+
+// Sidebar toggle
+settingsToggle.addEventListener('click', () => {
+    sidebar.style.display = sidebar.style.display === 'none' ? '' : 'none';
+});
 </script>
 </body>
 </html>
