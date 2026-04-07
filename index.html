@@ -250,7 +250,23 @@ Rules:
 
 Return ONLY the JSON.`;
 
-// ─── Bucketing ───
+// ─── Normalize + Bucket ───
+function normalizeResult(raw) {
+    // Normalize casing and types from model response
+    const furniture = capitalize(String(raw.furniture || 'Maybe'));
+    const spam = capitalize(String(raw.spam || 'No'));
+    const quality = Math.max(1, Math.min(5, Math.round(Number(raw.quality) || 1)));
+    return { furniture, quality, spam };
+}
+
+function capitalize(s) {
+    const lower = s.toLowerCase().trim();
+    if (lower === 'yes') return 'Yes';
+    if (lower === 'no') return 'No';
+    if (lower === 'maybe') return 'Maybe';
+    return s.trim();
+}
+
 function getAction(furniture, quality, spam) {
     if (furniture === 'No' || spam === 'Yes') return 'Reject';
     if (furniture === 'Yes' && quality >= 3 && spam === 'No') return 'Approve';
@@ -329,6 +345,8 @@ function fileToBase64(file) {
 }
 
 // ─── Batch processor ───
+let batchAborted = false;
+
 async function processBatch(items) {
     // items: [{ name, thumbSrc, isBlobUrl, getClassification: async fn => {furniture,quality,spam} }]
     const apiKey = apiKeyEl.value.trim();
@@ -336,6 +354,7 @@ async function processBatch(items) {
     if (!items.length) return;
     if (batchRunning) { alert('A batch is already processing. Wait for it to finish or clear results first.'); return; }
     batchRunning = true;
+    batchAborted = false;
     urlBtn.disabled = true;
 
     progress.classList.add('visible');
@@ -352,13 +371,16 @@ async function processBatch(items) {
     // Process 3 at a time
     const queue = [...items];
     async function next() {
-        if (!queue.length) return;
+        if (!queue.length || batchAborted) return;
         const item = queue.shift();
         try {
-            const result = await item.getClassification(apiKey);
+            const raw = await item.getClassification(apiKey);
+            if (batchAborted) return;
+            const result = normalizeResult(raw);
             const action = getAction(result.furniture, result.quality, result.spam);
             rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture: result.furniture, quality: result.quality, spam: result.spam, action });
         } catch (err) {
+            if (batchAborted) return;
             rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture: '—', quality: '—', spam: '—', action: 'Review', error: err.message });
         }
         done++;
@@ -369,11 +391,14 @@ async function processBatch(items) {
         return next();
     }
 
-    const workers = [];
-    for (let i = 0; i < Math.min(3, items.length); i++) workers.push(next());
-    await Promise.all(workers);
-    batchRunning = false;
-    urlBtn.disabled = false;
+    try {
+        const workers = [];
+        for (let i = 0; i < Math.min(3, items.length); i++) workers.push(next());
+        await Promise.all(workers);
+    } finally {
+        batchRunning = false;
+        urlBtn.disabled = false;
+    }
 }
 
 // ─── Handle file uploads ───
@@ -450,7 +475,7 @@ function exportCSV() {
     if (!rows.length) return;
     const header = ['Filename', 'Furniture Detected', 'Quality (1-5)', 'Spam', 'Recommended Action'];
     const csvRows = rows.map(r => [r.name, r.furniture, r.quality, r.spam, r.action]);
-    const csv = [header, ...csvRows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = '\uFEFF' + [header, ...csvRows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
     const dlUrl = URL.createObjectURL(blob);
@@ -462,10 +487,12 @@ function exportCSV() {
 
 // ─── Events ───
 
-// File drop
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+// File drop (counter prevents flicker when dragging over child elements)
+let dragCounter = 0;
+dropZone.addEventListener('dragenter', e => { e.preventDefault(); dragCounter++; dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); });
+dropZone.addEventListener('dragleave', () => { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropZone.classList.remove('dragover'); } });
+dropZone.addEventListener('drop', e => { e.preventDefault(); dragCounter = 0; dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
 dropZone.addEventListener('click', e => {
     // Prevent double-trigger: only open picker once regardless of which child was clicked
     if (e.target === fileInput) return;
@@ -478,6 +505,7 @@ urlBtn.addEventListener('click', handleUrls);
 
 // Toolbar
 $('clearBtn').addEventListener('click', () => {
+    batchAborted = true;
     rows.forEach(r => { if (r.isBlobUrl) URL.revokeObjectURL(r.thumbSrc); });
     rows.length = 0;
     renderTable();
