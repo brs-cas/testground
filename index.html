@@ -129,6 +129,27 @@
 
         .empty { text-align: center; color: var(--muted); padding: 2rem; font-size: 0.88rem; }
 
+        /* ── Progress area ── */
+        .progress-row { display: flex; align-items: center; gap: 0.75rem; }
+        .progress-row .progress { flex: 1; margin-bottom: 0; }
+        .btn-pause { min-width: 72px; }
+        .rate-info { font-size: 0.7rem; color: var(--muted); margin-top: 0.3rem; }
+
+        /* ── Summary stats ── */
+        .summary-box { display: none; margin-bottom: 1.25rem; padding: 1rem 1.25rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+        .summary-box.visible { display: block; }
+        .summary-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.6rem; font-weight: 600; }
+        .summary-grid { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .summary-stat { display: flex; flex-direction: column; align-items: center; min-width: 70px; }
+        .summary-stat .num { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+        .summary-stat .label { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
+        .num-approve { color: var(--green); }
+        .num-review { color: var(--yellow); }
+        .num-reject { color: var(--red); }
+        .num-error { color: var(--red); }
+        .num-total { color: var(--accent); }
+        .summary-time { font-size: 0.78rem; color: var(--muted); margin-top: 0.6rem; }
+
         @media (max-width: 700px) {
             .container { padding: 1rem; }
             .thumb-cell { min-width: auto; }
@@ -169,12 +190,29 @@
     </div>
 
     <!-- Progress -->
-    <div class="progress" id="progress">
-        <div class="progress-header">
-            <span id="progressLabel">Classifying...</span>
-            <span id="progressCount">0 / 0</span>
+    <div class="progress-row" id="progressRow" style="display:none;margin-bottom:1.25rem;">
+        <div class="progress visible" id="progress" style="display:block;">
+            <div class="progress-header">
+                <span id="progressLabel">Classifying...</span>
+                <span id="progressCount">0 / 0</span>
+            </div>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="rate-info" id="rateInfo"></div>
         </div>
-        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <button class="btn btn-pause" id="pauseBtn">Pause</button>
+    </div>
+
+    <!-- Summary stats (shown when batch completes) -->
+    <div class="summary-box" id="summaryBox">
+        <div class="summary-title">Batch Summary</div>
+        <div class="summary-grid">
+            <div class="summary-stat"><span class="num num-total" id="sTotal">0</span><span class="label">Total</span></div>
+            <div class="summary-stat"><span class="num num-approve" id="sApprove">0</span><span class="label">Approved</span></div>
+            <div class="summary-stat"><span class="num num-review" id="sReview">0</span><span class="label">Review</span></div>
+            <div class="summary-stat"><span class="num num-reject" id="sReject">0</span><span class="label">Rejected</span></div>
+            <div class="summary-stat"><span class="num num-error" id="sError">0</span><span class="label">Errors</span></div>
+        </div>
+        <div class="summary-time" id="summaryTime"></div>
     </div>
 
     <!-- Toolbar -->
@@ -217,15 +255,21 @@
 
 <script>
 // ─── State ───
-const rows = []; // { name, thumbSrc, furniture, quality, spam, action, error }
+const rows = [];
 let batchRunning = false;
+let batchAborted = false;
+let batchPaused = false;
+let pauseResolve = null; // resolve fn to unpause
+let batchStartTime = null;
 
 // ─── DOM ───
 const $ = id => document.getElementById(id);
 const dropZone = $('dropZone'), fileInput = $('fileInput');
 const urlInput = $('urlInput'), urlBtn = $('urlBtn');
-const progress = $('progress'), progressLabel = $('progressLabel'), progressCount = $('progressCount'), progressFill = $('progressFill');
+const progressRow = $('progressRow'), progressLabel = $('progressLabel'), progressCount = $('progressCount'), progressFill = $('progressFill');
+const rateInfo = $('rateInfo'), pauseBtn = $('pauseBtn');
 const toolbar = $('toolbar'), table = $('table'), tbody = $('tbody'), empty = $('empty');
+const summaryBox = $('summaryBox');
 const modal = $('modal'), modalImg = $('modalImg');
 const apiKeyEl = $('apiKey');
 
@@ -273,6 +317,37 @@ const USER_PROMPT = `Classify this image. Return ONLY this JSON structure:
   "recommendation": "approve | review | reject"
 }`;
 
+// ─── Rate Limiter (token bucket: 50 requests per 60 seconds) ───
+const RATE_LIMIT = 50;
+const RATE_WINDOW_MS = 60000;
+const requestTimestamps = [];
+
+async function waitForRateLimit() {
+    while (true) {
+        const now = Date.now();
+        // Remove timestamps older than the window
+        while (requestTimestamps.length > 0 && requestTimestamps[0] <= now - RATE_WINDOW_MS) {
+            requestTimestamps.shift();
+        }
+        if (requestTimestamps.length < RATE_LIMIT) {
+            requestTimestamps.push(now);
+            return;
+        }
+        // Wait until the oldest request exits the window
+        const waitMs = requestTimestamps[0] + RATE_WINDOW_MS - now + 50;
+        rateInfo.textContent = `Rate limit: waiting ${Math.ceil(waitMs / 1000)}s (${requestTimestamps.length}/${RATE_LIMIT} in window)`;
+        await sleep(Math.min(waitMs, 1000));
+    }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── Pause support ───
+async function waitIfPaused() {
+    if (!batchPaused) return;
+    return new Promise(resolve => { pauseResolve = resolve; });
+}
+
 // ─── Normalize + Bucket ───
 function normalizeResult(raw) {
     const furniture_detected = normalizeTernary(String(raw.furniture_detected || 'maybe'));
@@ -281,7 +356,6 @@ function normalizeResult(raw) {
     const quality_reasoning = String(raw.quality_reasoning || '').trim() || null;
     const is_spam = raw.is_spam === true || String(raw.is_spam).toLowerCase() === 'true';
     const spam_reason = is_spam ? (String(raw.spam_reason || '').trim() || null) : null;
-    // Enforce recommendation rules client-side regardless of what model says
     const recommendation = getAction(furniture_detected, quality_score, is_spam);
     return { furniture_detected, product_category, quality_score, quality_reasoning, is_spam, spam_reason, recommendation };
 }
@@ -299,13 +373,13 @@ function getAction(furniture, quality, isSpam) {
     return 'review';
 }
 
-// ─── API call ───
+// ─── API call with retry ───
 function parseAPIResponse(data) {
     const raw = (data.content?.[0]?.text || '').replace(/```json\s*/g, '').replace(/```/g, '').trim();
     return JSON.parse(raw);
 }
 
-async function classifyBase64(base64, mediaType, apiKey) {
+async function callAPI(body, apiKey) {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -314,18 +388,7 @@ async function classifyBase64(base64, mediaType, apiKey) {
             'anthropic-version': '2023-06-01',
             'anthropic-dangerous-direct-browser-access': 'true'
         },
-        body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 512,
-            system: SYSTEM_PROMPT,
-            messages: [{
-                role: 'user',
-                content: [
-                    { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-                    { type: 'text', text: USER_PROMPT }
-                ]
-            }]
-        })
+        body: JSON.stringify(body)
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -334,33 +397,27 @@ async function classifyBase64(base64, mediaType, apiKey) {
     return parseAPIResponse(await res.json());
 }
 
-async function classifyUrl(url, apiKey) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 512,
-            system: SYSTEM_PROMPT,
-            messages: [{
-                role: 'user',
-                content: [
-                    { type: 'image', source: { type: 'url', url } },
-                    { type: 'text', text: USER_PROMPT }
-                ]
-            }]
-        })
-    });
-    if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API ${res.status}`);
+function makeBody(imageContent) {
+    return {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 512,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: [imageContent, { type: 'text', text: USER_PROMPT }] }]
+    };
+}
+
+async function classifyWithRetry(getImageContent, apiKey) {
+    const imageContent = await getImageContent();
+    const body = makeBody(imageContent);
+    try {
+        await waitForRateLimit();
+        return await callAPI(body, apiKey);
+    } catch (firstErr) {
+        // Retry once
+        await sleep(2000);
+        await waitForRateLimit();
+        return await callAPI(body, apiKey);
     }
-    return parseAPIResponse(await res.json());
 }
 
 // ─── File to base64 ───
@@ -374,59 +431,93 @@ function fileToBase64(file) {
 }
 
 // ─── Batch processor ───
-let batchAborted = false;
-
 async function processBatch(items) {
-    // items: [{ name, thumbSrc, isBlobUrl, getClassification: async fn => {furniture,quality,spam} }]
     const apiKey = apiKeyEl.value.trim();
     if (!apiKey) { alert('Please enter your Anthropic API key.'); apiKeyEl.focus(); return; }
     if (!items.length) return;
     if (batchRunning) { alert('A batch is already processing. Wait for it to finish or clear results first.'); return; }
     batchRunning = true;
     batchAborted = false;
+    batchPaused = false;
+    batchStartTime = Date.now();
     urlBtn.disabled = true;
+    pauseBtn.textContent = 'Pause';
 
-    progress.classList.add('visible');
+    progressRow.style.display = '';
     toolbar.classList.add('visible');
     table.classList.add('visible');
     empty.style.display = 'none';
+    summaryBox.classList.remove('visible');
 
     let done = 0;
     const total = items.length;
     progressLabel.textContent = 'Classifying...';
     progressCount.textContent = `0 / ${total}`;
     progressFill.style.width = '0%';
+    rateInfo.textContent = '';
 
-    // Process 3 at a time
+    const CONCURRENCY = 5;
     const queue = [...items];
+
     async function next() {
-        if (!queue.length || batchAborted) return;
-        const item = queue.shift();
-        try {
-            const raw = await item.getClassification(apiKey);
+        while (queue.length > 0 && !batchAborted) {
+            await waitIfPaused();
             if (batchAborted) return;
-            const r = normalizeResult(raw);
-            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, ...r });
-        } catch (err) {
-            if (batchAborted) return;
-            rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, furniture_detected: '—', product_category: '—', quality_score: '—', quality_reasoning: null, is_spam: false, spam_reason: null, recommendation: 'review', error: err.message });
+
+            const item = queue.shift();
+            const timestamp = new Date().toISOString();
+
+            try {
+                const raw = await classifyWithRetry(item.getImageContent, apiKey);
+                if (batchAborted) return;
+                const r = normalizeResult(raw);
+                rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, timestamp, ...r });
+            } catch (err) {
+                if (batchAborted) return;
+                rows.push({ name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl, timestamp, furniture_detected: '—', product_category: '—', quality_score: '—', quality_reasoning: null, is_spam: false, spam_reason: null, recommendation: 'error', error: err.message });
+            }
+
+            done++;
+            progressCount.textContent = `${done} / ${total}`;
+            progressFill.style.width = `${(done / total) * 100}%`;
+            rateInfo.textContent = `${requestTimestamps.length}/${RATE_LIMIT} requests in current window`;
+
+            if (done === total) {
+                progressLabel.textContent = 'Done!';
+                rateInfo.textContent = '';
+            }
+
+            renderTable();
         }
-        done++;
-        progressCount.textContent = `${done} / ${total}`;
-        progressFill.style.width = `${(done / total) * 100}%`;
-        if (done === total) progressLabel.textContent = 'Done!';
-        renderTable();
-        return next();
     }
 
     try {
         const workers = [];
-        for (let i = 0; i < Math.min(3, items.length); i++) workers.push(next());
+        for (let i = 0; i < Math.min(CONCURRENCY, items.length); i++) workers.push(next());
         await Promise.all(workers);
     } finally {
         batchRunning = false;
         urlBtn.disabled = false;
+        pauseBtn.textContent = 'Pause';
+        if (!batchAborted) showSummary();
     }
+}
+
+// ─── Summary stats ───
+function showSummary() {
+    const elapsed = ((Date.now() - batchStartTime) / 1000).toFixed(1);
+    const approve = rows.filter(r => r.recommendation === 'approve').length;
+    const review = rows.filter(r => r.recommendation === 'review').length;
+    const reject = rows.filter(r => r.recommendation === 'reject').length;
+    const errors = rows.filter(r => r.recommendation === 'error').length;
+
+    $('sTotal').textContent = rows.length;
+    $('sApprove').textContent = approve;
+    $('sReview').textContent = review;
+    $('sReject').textContent = reject;
+    $('sError').textContent = errors;
+    $('summaryTime').textContent = `Completed in ${elapsed}s — ${(rows.length / (elapsed / 60)).toFixed(1)} images/min`;
+    summaryBox.classList.add('visible');
 }
 
 // ─── Handle file uploads ───
@@ -436,9 +527,9 @@ function handleFiles(fileList) {
         name: file.name,
         thumbSrc: URL.createObjectURL(file),
         isBlobUrl: true,
-        getClassification: async (apiKey) => {
+        getImageContent: async () => {
             const b64 = await fileToBase64(file);
-            return classifyBase64(b64, file.type || 'image/jpeg', apiKey);
+            return { type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: b64 } };
         }
     }));
     processBatch(items);
@@ -456,7 +547,7 @@ function handleUrls() {
         return {
             name,
             thumbSrc: url,
-            getClassification: async (apiKey) => classifyUrl(url, apiKey)
+            getImageContent: async () => ({ type: 'image', source: { type: 'url', url } })
         };
     });
     processBatch(items);
@@ -464,7 +555,6 @@ function handleUrls() {
 
 // ─── Render ───
 function renderTable() {
-    // Counts
     $('cApprove').textContent = rows.filter(r => r.recommendation === 'approve').length;
     $('cReview').textContent = rows.filter(r => r.recommendation === 'review').length;
     $('cReject').textContent = rows.filter(r => r.recommendation === 'reject').length;
@@ -474,7 +564,7 @@ function renderTable() {
         const furnitureBadge = fd === 'yes' ? 'badge-yes' : fd === 'no' ? 'badge-no' : fd === 'maybe' ? 'badge-maybe' : '';
         const spamBadge = r.is_spam ? 'badge-no' : 'badge-yes';
         const spamLabel = r.is_spam ? 'Yes' : 'No';
-        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : 'badge-review';
+        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : r.recommendation === 'error' ? 'badge-no' : 'badge-review';
 
         const stars = typeof r.quality_score === 'number'
             ? Array.from({length: 5}, (_, j) => `<span class="${j < r.quality_score ? 'star-on' : 'star-off'}">\u2605</span>`).join('')
@@ -504,11 +594,11 @@ function escAttr(s) {
     return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// ─── CSV Export ───
+// ─── CSV Export (with timestamp column) ───
 function exportCSV() {
     if (!rows.length) return;
-    const header = ['Filename', 'Furniture Detected', 'Product Category', 'Quality Score (1-5)', 'Quality Reasoning', 'Is Spam', 'Spam Reason', 'Recommendation'];
-    const csvRows = rows.map(r => [r.name, r.furniture_detected, r.product_category, r.quality_score, r.quality_reasoning || '', r.is_spam ? 'Yes' : 'No', r.spam_reason || '', r.recommendation]);
+    const header = ['Filename', 'Timestamp', 'Furniture Detected', 'Product Category', 'Quality Score (1-5)', 'Quality Reasoning', 'Is Spam', 'Spam Reason', 'Recommendation'];
+    const csvRows = rows.map(r => [r.name, r.timestamp || '', r.furniture_detected, r.product_category, r.quality_score, r.quality_reasoning || '', r.is_spam ? 'Yes' : 'No', r.spam_reason || '', r.recommendation]);
     const csv = '\uFEFF' + [header, ...csvRows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
@@ -528,7 +618,6 @@ dropZone.addEventListener('dragover', e => { e.preventDefault(); });
 dropZone.addEventListener('dragleave', () => { dragCounter--; if (dragCounter <= 0) { dragCounter = 0; dropZone.classList.remove('dragover'); } });
 dropZone.addEventListener('drop', e => { e.preventDefault(); dragCounter = 0; dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
 dropZone.addEventListener('click', e => {
-    // Prevent double-trigger: only open picker once regardless of which child was clicked
     if (e.target === fileInput) return;
     fileInput.click();
 });
@@ -537,15 +626,34 @@ fileInput.addEventListener('change', () => { handleFiles(fileInput.files); fileI
 // URLs
 urlBtn.addEventListener('click', handleUrls);
 
+// Pause / Resume
+pauseBtn.addEventListener('click', () => {
+    if (!batchRunning) return;
+    if (batchPaused) {
+        // Resume
+        batchPaused = false;
+        pauseBtn.textContent = 'Pause';
+        progressLabel.textContent = 'Classifying...';
+        if (pauseResolve) { pauseResolve(); pauseResolve = null; }
+    } else {
+        // Pause
+        batchPaused = true;
+        pauseBtn.textContent = 'Resume';
+        progressLabel.textContent = 'Paused';
+    }
+});
+
 // Toolbar
 $('clearBtn').addEventListener('click', () => {
     batchAborted = true;
+    if (pauseResolve) { pauseResolve(); pauseResolve = null; }
     rows.forEach(r => { if (r.isBlobUrl) URL.revokeObjectURL(r.thumbSrc); });
     rows.length = 0;
     renderTable();
-    progress.classList.remove('visible');
+    progressRow.style.display = 'none';
     toolbar.classList.remove('visible');
     table.classList.remove('visible');
+    summaryBox.classList.remove('visible');
     empty.style.display = '';
 });
 $('exportBtn').addEventListener('click', exportCSV);
