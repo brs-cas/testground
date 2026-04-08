@@ -120,6 +120,9 @@
         .error-cell { color: var(--red); font-size: 0.78rem; }
         .reasoning-cell { font-size: 0.78rem; color: var(--muted); max-width: 220px; line-height: 1.4; }
         .spam-detail { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; line-height: 1.3; }
+        .dup-tag { font-size: 0.7rem; color: #f97316; font-weight: 500; }
+        .num-dup { color: #f97316; }
+        .row-dup td { opacity: 0.5; }
 
         /* ── Modal ── */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; display: none; align-items: center; justify-content: center; }
@@ -210,6 +213,7 @@
             <div class="summary-stat"><span class="num num-approve" id="sApprove">0</span><span class="label">Approved</span></div>
             <div class="summary-stat"><span class="num num-review" id="sReview">0</span><span class="label">Review</span></div>
             <div class="summary-stat"><span class="num num-reject" id="sReject">0</span><span class="label">Rejected</span></div>
+            <div class="summary-stat"><span class="num num-dup" id="sDup">0</span><span class="label">Duplicates</span></div>
             <div class="summary-stat"><span class="num num-error" id="sError">0</span><span class="label">Errors</span></div>
         </div>
         <div class="summary-time" id="summaryTime"></div>
@@ -437,6 +441,72 @@ function fileToBase64(file) {
     });
 }
 
+// ─── dHash: perceptual duplicate detection ───
+// Difference hash: resize to 9x8 grayscale, compare adjacent pixels → 64-bit hash
+const DUP_THRESHOLD = 10; // Hamming distance ≤ 10 = near-duplicate
+
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null); // non-fatal
+        img.src = src;
+    });
+}
+
+function computeDHash(img) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 9;
+    canvas.height = 8;
+    ctx.drawImage(img, 0, 0, 9, 8);
+    const px = ctx.getImageData(0, 0, 9, 8).data;
+    const hash = new Uint8Array(8);
+    let bit = 0;
+    for (let y = 0; y < 8; y++) {
+        for (let x = 0; x < 8; x++) {
+            const li = (y * 9 + x) * 4;
+            const ri = (y * 9 + x + 1) * 4;
+            const lg = px[li] * 0.299 + px[li + 1] * 0.587 + px[li + 2] * 0.114;
+            const rg = px[ri] * 0.299 + px[ri + 1] * 0.587 + px[ri + 2] * 0.114;
+            if (lg > rg) hash[bit >> 3] |= 1 << (bit & 7);
+            bit++;
+        }
+    }
+    return hash;
+}
+
+function hammingDist(a, b) {
+    let d = 0;
+    for (let i = 0; i < 8; i++) { let x = a[i] ^ b[i]; while (x) { d += x & 1; x >>= 1; } }
+    return d;
+}
+
+// Compute hashes for all items. Returns items annotated with { hash, dupOf }
+async function deduplicateItems(items) {
+    progressLabel.textContent = 'Computing image hashes...';
+    const hashed = [];
+    for (const item of items) {
+        const img = await loadImage(item.thumbSrc);
+        const hash = img ? computeDHash(img) : null;
+        hashed.push({ ...item, hash, dupOf: null });
+    }
+
+    // Compare each image against all earlier images
+    for (let i = 1; i < hashed.length; i++) {
+        if (!hashed[i].hash) continue;
+        for (let j = 0; j < i; j++) {
+            if (!hashed[j].hash || hashed[j].dupOf) continue; // don't chain: compare against originals only
+            if (hammingDist(hashed[i].hash, hashed[j].hash) <= DUP_THRESHOLD) {
+                hashed[i].dupOf = hashed[j].name;
+                break;
+            }
+        }
+    }
+    return hashed;
+}
+
 // ─── Batch processor ───
 async function processBatch(items) {
     const apiKey = apiKeyEl.value.trim();
@@ -456,15 +526,44 @@ async function processBatch(items) {
     empty.style.display = 'none';
     summaryBox.classList.remove('visible');
 
-    let done = 0;
     const total = items.length;
-    progressLabel.textContent = 'Classifying...';
+    progressLabel.textContent = 'Computing image hashes...';
     progressCount.textContent = `0 / ${total}`;
     progressFill.style.width = '0%';
     rateInfo.textContent = '';
 
+    // Phase 1: compute hashes and find duplicates (no API calls)
+    const hashedItems = await deduplicateItems(items);
+    if (batchAborted) { batchRunning = false; urlBtn.disabled = false; return; }
+
+    const dupCount = hashedItems.filter(h => h.dupOf).length;
+    if (dupCount > 0) {
+        rateInfo.textContent = `Found ${dupCount} duplicate${dupCount > 1 ? 's' : ''} — skipping API calls for those`;
+    }
+
+    // Insert duplicate rows immediately (no API call needed)
+    for (const item of hashedItems) {
+        if (item.dupOf) {
+            rows.push({
+                name: item.name, thumbSrc: item.thumbSrc, isBlobUrl: !!item.isBlobUrl,
+                timestamp: new Date().toISOString(),
+                furniture_detected: '—', product_category: '—', quality_score: '—',
+                quality_reasoning: null, is_spam: false, spam_reason: null,
+                recommendation: 'duplicate', dupOf: item.dupOf
+            });
+        }
+    }
+    renderTable();
+
+    // Phase 2: classify non-duplicates via API
+    const toClassify = hashedItems.filter(h => !h.dupOf);
+    let done = hashedItems.length - toClassify.length; // dupes are already "done"
+    progressLabel.textContent = 'Classifying...';
+    progressCount.textContent = `${done} / ${total}`;
+    progressFill.style.width = `${(done / total) * 100}%`;
+
     const CONCURRENCY = 5;
-    const queue = [...items];
+    const queue = [...toClassify];
 
     async function next() {
         while (queue.length > 0 && !batchAborted) {
@@ -500,7 +599,7 @@ async function processBatch(items) {
 
     try {
         const workers = [];
-        for (let i = 0; i < Math.min(CONCURRENCY, items.length); i++) workers.push(next());
+        for (let i = 0; i < Math.min(CONCURRENCY, toClassify.length); i++) workers.push(next());
         await Promise.all(workers);
     } finally {
         batchRunning = false;
@@ -516,12 +615,14 @@ function showSummary() {
     const approve = rows.filter(r => r.recommendation === 'approve').length;
     const review = rows.filter(r => r.recommendation === 'review').length;
     const reject = rows.filter(r => r.recommendation === 'reject').length;
+    const dups = rows.filter(r => r.recommendation === 'duplicate').length;
     const errors = rows.filter(r => r.recommendation === 'error').length;
 
     $('sTotal').textContent = rows.length;
     $('sApprove').textContent = approve;
     $('sReview').textContent = review;
     $('sReject').textContent = reject;
+    $('sDup').textContent = dups;
     $('sError').textContent = errors;
     const rate = elapsed > 0 ? (rows.length / (elapsed / 60)).toFixed(1) : '—';
     $('summaryTime').textContent = `Completed in ${elapsed}s — ${rate} images/min`;
@@ -569,18 +670,20 @@ function renderTable() {
 
     tbody.innerHTML = rows.map((r, i) => {
         const isError = r.recommendation === 'error';
+        const isDup = r.recommendation === 'duplicate';
+        const isSkipped = isError || isDup;
         const fd = r.furniture_detected;
         const furnitureBadge = fd === 'yes' ? 'badge-yes' : fd === 'no' ? 'badge-no' : fd === 'maybe' ? 'badge-maybe' : '';
-        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : isError ? 'badge-no' : 'badge-review';
+        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : isError ? 'badge-no' : isDup ? 'badge-maybe' : 'badge-review';
 
         const stars = typeof r.quality_score === 'number'
             ? Array.from({length: 5}, (_, j) => `<span class="${j < r.quality_score ? 'star-on' : 'star-off'}">\u2605</span>`).join('')
             : '—';
 
-        // Don't show misleading badges for error rows
+        // Don't show misleading badges for error/duplicate rows
         let furnitureCell = '—';
         let spamCell = '—';
-        if (!isError) {
+        if (!isSkipped) {
             furnitureCell = fd !== '—' ? `<span class="badge ${furnitureBadge}">${esc(fd)}</span>` : '—';
             const spamBadge = r.is_spam ? 'badge-no' : 'badge-yes';
             const spamLabel = r.is_spam ? 'Yes' : 'No';
@@ -588,14 +691,16 @@ function renderTable() {
             spamCell = `<span class="badge ${spamBadge}"${spamTip}>${esc(spamLabel)}</span>${r.spam_reason ? `<div class="spam-detail">${esc(r.spam_reason)}</div>` : ''}`;
         }
 
-        return `<tr>
+        const dupInfo = isDup ? `<div class="dup-tag">duplicate of ${esc(r.dupOf)}</div>` : '';
+
+        return `<tr class="${isDup ? 'row-dup' : ''}">
             <td><div class="thumb-cell"><img class="thumb" src="${escAttr(r.thumbSrc)}" data-idx="${i}" alt="" onerror="this.style.display='none'"><span class="fname" title="${escAttr(r.name)}">${esc(r.name)}</span></div></td>
             <td>${furnitureCell}</td>
-            <td style="font-size:0.78rem">${esc(!isError && r.product_category !== '—' && r.product_category !== 'none' ? r.product_category : '—')}</td>
+            <td style="font-size:0.78rem">${esc(!isSkipped && r.product_category !== '—' && r.product_category !== 'none' ? r.product_category : '—')}</td>
             <td><span class="stars">${stars}</span>${typeof r.quality_score === 'number' ? ` <span style="color:var(--muted);font-size:0.75rem">(${r.quality_score}/5)</span>` : ''}</td>
             <td class="reasoning-cell" title="${escAttr(r.quality_reasoning || '')}">${esc(r.quality_reasoning || '—')}</td>
             <td>${spamCell}</td>
-            <td><span class="badge ${actionBadge}">${esc(r.recommendation)}</span>${r.error ? `<div class="error-cell">${esc(r.error)}</div>` : ''}</td>
+            <td><span class="badge ${actionBadge}">${esc(r.recommendation)}</span>${dupInfo}${r.error ? `<div class="error-cell">${esc(r.error)}</div>` : ''}</td>
         </tr>`;
     }).join('');
 }
@@ -613,8 +718,8 @@ function escAttr(s) {
 // ─── CSV Export (with timestamp column) ───
 function exportCSV() {
     if (!rows.length) return;
-    const header = ['Filename', 'Timestamp', 'Furniture Detected', 'Product Category', 'Quality Score (1-5)', 'Quality Reasoning', 'Is Spam', 'Spam Reason', 'Recommendation'];
-    const csvRows = rows.map(r => [r.name, r.timestamp || '', r.furniture_detected, r.product_category, r.quality_score, r.quality_reasoning || '', r.is_spam ? 'Yes' : 'No', r.spam_reason || '', r.recommendation]);
+    const header = ['Filename', 'Timestamp', 'Furniture Detected', 'Product Category', 'Quality Score (1-5)', 'Quality Reasoning', 'Is Spam', 'Spam Reason', 'Recommendation', 'Duplicate Of'];
+    const csvRows = rows.map(r => [r.name, r.timestamp || '', r.furniture_detected, r.product_category, r.quality_score, r.quality_reasoning || '', r.is_spam ? 'Yes' : 'No', r.spam_reason || '', r.recommendation, r.dupOf || '']);
     const csv = '\uFEFF' + [header, ...csvRows].map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const a = document.createElement('a');
