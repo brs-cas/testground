@@ -259,7 +259,6 @@ const rows = [];
 let batchRunning = false;
 let batchAborted = false;
 let batchPaused = false;
-let pauseResolve = null; // resolve fn to unpause
 let batchStartTime = null;
 
 // ─── DOM ───
@@ -336,16 +335,23 @@ async function waitForRateLimit() {
         // Wait until the oldest request exits the window
         const waitMs = requestTimestamps[0] + RATE_WINDOW_MS - now + 50;
         rateInfo.textContent = `Rate limit: waiting ${Math.ceil(waitMs / 1000)}s (${requestTimestamps.length}/${RATE_LIMIT} in window)`;
-        await sleep(Math.min(waitMs, 1000));
+        await sleep(waitMs);
     }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ─── Pause support ───
+let pauseWaiters = []; // all paused worker resolve fns
+
 async function waitIfPaused() {
     if (!batchPaused) return;
-    return new Promise(resolve => { pauseResolve = resolve; });
+    return new Promise(resolve => { pauseWaiters.push(resolve); });
+}
+
+function resumeAll() {
+    pauseWaiters.forEach(fn => fn());
+    pauseWaiters = [];
 }
 
 // ─── Normalize + Bucket ───
@@ -409,13 +415,14 @@ function makeBody(imageContent) {
 async function classifyWithRetry(getImageContent, apiKey) {
     const imageContent = await getImageContent();
     const body = makeBody(imageContent);
+    await waitForRateLimit();
     try {
-        await waitForRateLimit();
         return await callAPI(body, apiKey);
     } catch (firstErr) {
-        // Retry once
+        if (batchAborted) throw firstErr;
+        // Retry once after 2s (reuses the same rate token — no second token needed)
         await sleep(2000);
-        await waitForRateLimit();
+        if (batchAborted) throw firstErr;
         return await callAPI(body, apiKey);
     }
 }
@@ -516,7 +523,8 @@ function showSummary() {
     $('sReview').textContent = review;
     $('sReject').textContent = reject;
     $('sError').textContent = errors;
-    $('summaryTime').textContent = `Completed in ${elapsed}s — ${(rows.length / (elapsed / 60)).toFixed(1)} images/min`;
+    const rate = elapsed > 0 ? (rows.length / (elapsed / 60)).toFixed(1) : '—';
+    $('summaryTime').textContent = `Completed in ${elapsed}s — ${rate} images/min`;
     summaryBox.classList.add('visible');
 }
 
@@ -560,25 +568,33 @@ function renderTable() {
     $('cReject').textContent = rows.filter(r => r.recommendation === 'reject').length;
 
     tbody.innerHTML = rows.map((r, i) => {
+        const isError = r.recommendation === 'error';
         const fd = r.furniture_detected;
         const furnitureBadge = fd === 'yes' ? 'badge-yes' : fd === 'no' ? 'badge-no' : fd === 'maybe' ? 'badge-maybe' : '';
-        const spamBadge = r.is_spam ? 'badge-no' : 'badge-yes';
-        const spamLabel = r.is_spam ? 'Yes' : 'No';
-        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : r.recommendation === 'error' ? 'badge-no' : 'badge-review';
+        const actionBadge = r.recommendation === 'approve' ? 'badge-approve' : r.recommendation === 'reject' ? 'badge-reject' : isError ? 'badge-no' : 'badge-review';
 
         const stars = typeof r.quality_score === 'number'
             ? Array.from({length: 5}, (_, j) => `<span class="${j < r.quality_score ? 'star-on' : 'star-off'}">\u2605</span>`).join('')
             : '—';
 
-        const spamTip = r.spam_reason ? ` title="${escAttr(r.spam_reason)}"` : '';
+        // Don't show misleading badges for error rows
+        let furnitureCell = '—';
+        let spamCell = '—';
+        if (!isError) {
+            furnitureCell = fd !== '—' ? `<span class="badge ${furnitureBadge}">${esc(fd)}</span>` : '—';
+            const spamBadge = r.is_spam ? 'badge-no' : 'badge-yes';
+            const spamLabel = r.is_spam ? 'Yes' : 'No';
+            const spamTip = r.spam_reason ? ` title="${escAttr(r.spam_reason)}"` : '';
+            spamCell = `<span class="badge ${spamBadge}"${spamTip}>${esc(spamLabel)}</span>${r.spam_reason ? `<div class="spam-detail">${esc(r.spam_reason)}</div>` : ''}`;
+        }
 
         return `<tr>
             <td><div class="thumb-cell"><img class="thumb" src="${escAttr(r.thumbSrc)}" data-idx="${i}" alt="" onerror="this.style.display='none'"><span class="fname" title="${escAttr(r.name)}">${esc(r.name)}</span></div></td>
-            <td>${fd !== '—' ? `<span class="badge ${furnitureBadge}">${esc(fd)}</span>` : '—'}</td>
-            <td style="font-size:0.78rem">${esc(r.product_category !== '—' && r.product_category !== 'none' ? r.product_category : '—')}</td>
+            <td>${furnitureCell}</td>
+            <td style="font-size:0.78rem">${esc(!isError && r.product_category !== '—' && r.product_category !== 'none' ? r.product_category : '—')}</td>
             <td><span class="stars">${stars}</span>${typeof r.quality_score === 'number' ? ` <span style="color:var(--muted);font-size:0.75rem">(${r.quality_score}/5)</span>` : ''}</td>
             <td class="reasoning-cell" title="${escAttr(r.quality_reasoning || '')}">${esc(r.quality_reasoning || '—')}</td>
-            <td><span class="badge ${spamBadge}"${spamTip}>${esc(spamLabel)}</span>${r.spam_reason ? `<div class="spam-detail">${esc(r.spam_reason)}</div>` : ''}</td>
+            <td>${spamCell}</td>
             <td><span class="badge ${actionBadge}">${esc(r.recommendation)}</span>${r.error ? `<div class="error-cell">${esc(r.error)}</div>` : ''}</td>
         </tr>`;
     }).join('');
@@ -630,13 +646,11 @@ urlBtn.addEventListener('click', handleUrls);
 pauseBtn.addEventListener('click', () => {
     if (!batchRunning) return;
     if (batchPaused) {
-        // Resume
         batchPaused = false;
         pauseBtn.textContent = 'Pause';
         progressLabel.textContent = 'Classifying...';
-        if (pauseResolve) { pauseResolve(); pauseResolve = null; }
+        resumeAll();
     } else {
-        // Pause
         batchPaused = true;
         pauseBtn.textContent = 'Resume';
         progressLabel.textContent = 'Paused';
@@ -646,7 +660,8 @@ pauseBtn.addEventListener('click', () => {
 // Toolbar
 $('clearBtn').addEventListener('click', () => {
     batchAborted = true;
-    if (pauseResolve) { pauseResolve(); pauseResolve = null; }
+    batchPaused = false;
+    resumeAll();
     rows.forEach(r => { if (r.isBlobUrl) URL.revokeObjectURL(r.thumbSrc); });
     rows.length = 0;
     renderTable();
